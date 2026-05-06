@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Huffman 壓縮可視化系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 min-h-screen text-slate-100">
+    <!-- 導航條 -->
+    <nav class="bg-slate-950 bg-opacity-50 backdrop-blur-md border-b border-slate-700 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                </div>
+                <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                    Huffman 壓縮可視化
+                </h1>
+            </div>
+            <div class="text-sm text-slate-400">
+                v1.0.0 | <span id="api-status" class="text-red-400">離線</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto px-6 py-8">
+        <!-- 主容器 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- 左側 - 上傳區域 -->
+            <div class="lg:col-span-2">
+                <!-- 上傳區域 -->
+                <div class="bg-slate-800 bg-opacity-50 backdrop-blur-sm rounded-2xl border-2 border-dashed border-slate-600 p-12 text-center cursor-pointer transition-all duration-300 hover:border-blue-500 hover:bg-slate-800 hover:shadow-lg hover:shadow-blue-500/10"
+                     id="dropZone">
+                    <input type="file" id="fileInput" class="hidden" accept=".txt" />
+                    
+                    <div class="flex flex-col items-center gap-4">
+                        <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-xl font-semibold text-slate-100">拖放檔案到此</p>
+                            <p class="text-sm text-slate-400 mt-1">或點擊選擇 .txt 檔案</p>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-4">支援的格式：.txt | 最大 10MB</p>
+                    </div>
+                </div>
+
+                <!-- 檔案預覽 -->
+                <div id="filePreview" class="hidden mt-8 bg-slate-800 bg-opacity-50 rounded-2xl p-6 border border-slate-700">
+                    <div class="flex items-start justify-between mb-6">
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-100 mb-2">
+                                <span id="fileName">檔案名稱</span>
+                            </h3>
+                            <p class="text-sm text-slate-400">
+                                大小：<span id="fileSize" class="text-slate-200 font-mono">0 B</span>
+                            </p>
+                        </div>
+                        <button id="clearFileBtn" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition-colors">
+                            清除
+                        </button>
+                    </div>
+
+                    <!-- 進度條 -->
+                    <div id="progressContainer" class="hidden mb-6">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-slate-300">正在壓縮...</span>
+                            <span id="progressPercent" class="text-sm text-blue-400">0%</span>
+                        </div>
+                        <div class="w-full h-3 bg-slate-700 rounded-full overflow-hidden">
+                            <div id="progressBar" class="h-full bg-gradient-to-r from-blue-500 to-purple-600 transition-all duration-300"
+                                 style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- 開始壓縮按鈕 -->
+                    <button id="compressBtn" class="w-full py-3 px-6 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl hover:shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
+                        🚀 開始壓縮
+                    </button>
+                </div>
+
+                <!-- 壓縮結果 -->
+                <div id="compressionResult" class="hidden mt-8 space-y-6">
+                    <!-- 統計信息 -->
+                    <div class="grid grid-cols-3 gap-4">
+                        <div class="bg-slate-800 bg-opacity-50 rounded-xl p-4 border border-slate-700">
+                            <p class="text-xs text-slate-400 uppercase tracking-wide mb-2">原始大小</p>
+                            <p class="text-2xl font-bold text-blue-400">
+                                <span id="resultOriginalSize">0</span> <span class="text-base text-slate-400">B</span>
+                            </p>
+                        </div>
+                        <div class="bg-slate-800 bg-opacity-50 rounded-xl p-4 border border-slate-700">
+                            <p class="text-xs text-slate-400 uppercase tracking-wide mb-2">壓縮後</p>
+                            <p class="text-2xl font-bold text-purple-400">
+                                <span id="resultCompressedSize">0</span> <span class="text-base text-slate-400">bits</span>
+                            </p>
+                        </div>
+                        <div class="bg-slate-800 bg-opacity-50 rounded-xl p-4 border border-slate-700">
+                            <p class="text-xs text-slate-400 uppercase tracking-wide mb-2">壓縮率</p>
+                            <p class="text-2xl font-bold text-green-400">
+                                <span id="resultCompressionRatio">0</span><span class="text-base text-slate-400">%</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- 字符頻率統計 -->
+                    <div class="bg-slate-800 bg-opacity-50 rounded-xl p-6 border border-slate-700">
+                        <h3 class="text-lg font-semibold mb-4 text-slate-100">字符頻率統計</h3>
+                        <canvas id="frequencyChart" class="max-h-64"></canvas>
+                    </div>
+
+                    <!-- 編碼表 -->
+                    <div class="bg-slate-800 bg-opacity-50 rounded-xl p-6 border border-slate-700">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold text-slate-100">編碼表</h3>
+                            <button id="copyCodeTableBtn" class="px-3 py-1 text-xs bg-slate-700 hover:bg-slate-600 rounded transition-colors">
+                                複製
+                            </button>
+                        </div>
+                        <div id="codeTableContainer" class="max-h-64 overflow-y-auto">
+                            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                <!-- 編碼表項將動態生成 -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 下載按鈕 -->
+                    <div class="flex gap-4">
+                        <button id="downloadBinBtn" class="flex-1 py-3 px-6 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold rounded-lg transition-all transform hover:scale-105 shadow-lg hover:shadow-green-500/20">
+                            💾 下載壓縮文件 (.bin)
+                        </button>
+                        <button id="viewAnimationBtn" class="flex-1 py-3 px-6 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white font-semibold rounded-lg transition-all transform hover:scale-105 shadow-lg hover:shadow-orange-500/20">
+                            🎬 查看動畫
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右側 - 實時統計 -->
+            <div class="space-y-6">
+                <!-- 動畫進度 -->
+                <div class="bg-slate-800 bg-opacity-50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700 sticky top-24">
+                    <h2 class="text-lg font-semibold mb-4 text-slate-100">📊 即時統計</h2>
+                    
+                    <div class="space-y-4">
+                        <!-- 檔案狀態 -->
+                        <div class="bg-slate-700 bg-opacity-30 rounded-lg p-4">
+                            <p class="text-xs text-slate-400 uppercase tracking-wide mb-2">檔案狀態</p>
+                            <p id="statusText" class="text-sm text-slate-300">
+                                👁️ 等待檔案...
+                            </p>
+                        </div>
+
+                        <!-- API 狀態 -->
+                        <div class="bg-slate-700 bg-opacity-30 rounded-lg p-4">
+                            <p class="text-xs text-slate-400 uppercase tracking-wide mb-2">後端連線</p>
+                            <div class="flex items-center gap-2">
+                                <div id="connectionDot" class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>
+                                <span id="connectionStatus" class="text-sm text-slate-300">檢查中...</span>
+                            </div>
+                        </div>
+
+                        <!-- 建樹步驟 -->
+                        <div class="bg-slate-700 bg-opacity-30 rounded-lg p-4">
+                            <p class="text-xs text-slate-400 uppercase tracking-wide mb-2">Huffman 樹構建步驟</p>
+                            <p id="buildStepsCount" class="text-2xl font-bold text-blue-400">0</p>
+                            <p class="text-xs text-slate-400 mt-1">步驟</p>
+                        </div>
+
+                        <!-- 獨特字符數 -->
+                        <div class="bg-slate-700 bg-opacity-30 rounded-lg p-4">
+                            <p class="text-xs text-slate-400 uppercase tracking-wide mb-2">獨特字符</p>
+                            <p id="uniqueCharsCount" class="text-2xl font-bold text-purple-400">0</p>
+                            <p class="text-xs text-slate-400 mt-1">個字符</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 幫助 -->
+                <div class="bg-slate-800 bg-opacity-50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700">
+                    <h3 class="text-sm font-semibold mb-3 text-slate-100">💡 使用說明</h3>
+                    <ul class="text-xs text-slate-400 space-y-2">
+                        <li>✓ 上傳 .txt 文字檔案</li>
+                        <li>✓ 點擊「開始壓縮」進行 Huffman 編碼</li>
+                        <li>✓ 查看壓縮率和編碼表</li>
+                        <li>✓ 點擊「查看動畫」觀賞樹構建過程</li>
+                        <li>✓ 下載壓縮後的 .bin 檔案</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 動畫模態框 -->
+    <div id="animationModal" class="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-slate-700 shadow-2xl">
+            <!-- 模態頭部 -->
+            <div class="bg-slate-800 px-6 py-4 border-b border-slate-700 flex items-center justify-between">
+                <h2 class="text-xl font-semibold text-slate-100">🎬 Huffman 樹構建動畫</h2>
+                <button id="closeAnimationBtn" class="text-slate-400 hover:text-slate-100 text-2xl">&times;</button>
+            </div>
+
+            <!-- 動畫內容 -->
+            <div class="flex-1 overflow-y-auto p-6 space-y-6">
+                <!-- 樹可視化區域 -->
+                <div class="bg-slate-800 bg-opacity-50 rounded-xl p-6 border border-slate-700 min-h-96 flex flex-col items-center justify-center">
+                    <canvas id="treeCanvas" class="max-w-full max-h-80"></canvas>
+                    <p id="treeEmptyMsg" class="text-slate-400">等待數據...</p>
+                </div>
+
+                <!-- 傳輸速度動畫區域 ⭐ 新增 -->
+                <div class="bg-slate-800 bg-opacity-50 rounded-xl p-6 border border-slate-700">
+                    <h3 class="text-lg font-semibold mb-4 text-slate-100">📊 傳輸速度對比</h3>
+                    
+                    <!-- SVG 容器 -->
+                    <div id="transmissionAnimationContainer" class="bg-slate-900 rounded-lg p-4 mb-4" style="height: 250px; position: relative; overflow: hidden;">
+                        <svg id="transmissionSVG" width="100%" height="100%" style="background: rgba(15, 23, 42, 0.5); border-radius: 8px;">
+                            <!-- 原始傳輸 (左邊) -->
+                            <g id="originalTransmissionGroup">
+                                <text x="20" y="30" class="text-xs font-mono" fill="#cbd5e1">原始 (8-bit)</text>
+                                <line x1="20" y1="50" x2="450" y2="50" stroke="#64748b" stroke-width="2" stroke-dasharray="5,5"/>
+                                <circle id="originalBit" cx="20" cy="50" r="6" fill="#3b82f6"/>
+                            </g>
+                            
+                            <!-- Huffman 傳輸 (右邊) -->
+                            <g id="huffmanTransmissionGroup">
+                                <text x="20" y="140" class="text-xs font-mono" fill="#cbd5e1">Huffman 壓縮</text>
+                                <line x1="20" y1="160" x2="450" y2="160" stroke="#64748b" stroke-width="2" stroke-dasharray="5,5"/>
+                                <circle id="huffmanBit" cx="20" cy="160" r="6" fill="#8b5cf6"/>
+                            </g>
+                            
+                            <!-- 時間標尺 -->
+                            <g id="timelineGroup" opacity="0.5">
+                                <text x="10" y="220" class="text-xs" fill="#94a3b8">0s</text>
+                                <text x="220" y="220" class="text-xs" fill="#94a3b8">時間</text>
+                                <text x="430" y="220" class="text-xs" fill="#94a3b8">T</text>
+                            </g>
+                        </svg>
+                    </div>
+
+                    <!-- 狀態文本框 -->
+                    <div class="bg-slate-700 bg-opacity-50 rounded-lg p-4 font-mono text-sm max-h-24 overflow-y-auto border border-slate-600">
+                        <div class="text-slate-300">
+                            <p>📍 <span id="statusLine1">準備開始...</span></p>
+                            <p>🔤 <span id="statusLine2">等待字符...</span></p>
+                            <p>💾 <span id="statusLine3">編碼: -</span></p>
+                            <p>📏 <span id="statusLine4">長度: - bits</span></p>
+                            <p>⚡ <span id="statusLine5">時長: - 秒</span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 動畫控制 -->
+                <div class="bg-slate-800 bg-opacity-50 rounded-xl p-6 border border-slate-700 space-y-4">
+                    <!-- 步驟信息 -->
+                    <div class="grid grid-cols-3 gap-4 mb-4">
+                        <div class="bg-slate-700 bg-opacity-30 rounded-lg p-3 text-center">
+                            <p class="text-xs text-slate-400 mb-1">當前步驟</p>
+                            <p class="text-2xl font-bold text-blue-400">
+                                <span id="currentStep">0</span>/<span id="totalSteps">0</span>
+                            </p>
+                        </div>
+                        <div class="bg-slate-700 bg-opacity-30 rounded-lg p-3 text-center">
+                            <p class="text-xs text-slate-400 mb-1">左節點</p>
+                            <p id="leftNodeInfo" class="text-sm text-slate-300 font-mono">-</p>
+                        </div>
+                        <div class="bg-slate-700 bg-opacity-30 rounded-lg p-3 text-center">
+                            <p class="text-xs text-slate-400 mb-1">右節點</p>
+                            <p id="rightNodeInfo" class="text-sm text-slate-300 font-mono">-</p>
+                        </div>
+                    </div>
+
+                    <!-- 播放控制 -->
+                    <div class="flex items-center gap-4">
+                        <button id="prevStepBtn" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors">
+                            ⏮️ 上一步
+                        </button>
+                        <button id="playBtn" class="flex-1 py-2 px-6 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 rounded-lg font-medium transition-all">
+                            ▶️ 播放
+                        </button>
+                        <button id="nextStepBtn" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors">
+                            下一步 ⏭️
+                        </button>
+                    </div>
+
+                    <!-- 播放速度 -->
+                    <div class="flex items-center gap-4">
+                        <label class="text-sm text-slate-300">播放速度:</label>
+                        <input type="range" id="animationSpeed" min="0.5" max="3" step="0.5" value="1" class="flex-1">
+                        <span id="speedValue" class="text-sm text-slate-300 w-8">1x</span>
+                    </div>
+
+                    <!-- 步驟列表 -->
+                    <div class="max-h-40 overflow-y-auto">
+                        <div id="stepsList" class="space-y-2">
+                            <!-- 步驟項將動態生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知提示 -->
+    <div id="notificationContainer" class="fixed bottom-6 right-6 space-y-3 z-40 pointer-events-none">
+        <!-- 通知將動態添加 -->
+    </div>
+
+    <!-- 腳本 -->
+    <script src="js/api.js"></script>
+    <script src="js/visualization.js"></script>
+    <script src="js/animation.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

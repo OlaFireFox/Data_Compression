@@ -1,0 +1,253 @@
+/* ============= 自訂樣式 ============= */
+
+/* 平滑過渡 */
+* {
+    transition-duration: 200ms;
+}
+
+/* 背景漸變動畫 */
+@keyframes gradientShift {
+    0% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+body {
+    animation: gradientShift 15s ease infinite;
+}
+
+/* 拖放區域 */
+#dropZone {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.5) 0%, rgba(30, 41, 59, 0.5) 100%);
+    backdrop-filter: blur(10px);
+}
+
+#dropZone:hover {
+    background: linear-gradient(135deg, rgba(30, 58, 138, 0.3) 0%, rgba(88, 28, 135, 0.2) 100%);
+}
+
+/* 滾動條 */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(51, 65, 85, 0.3);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+}
+
+/* 按鈕動畫 */
+button:active {
+    transform: scale(0.95);
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* 卡片陰影 */
+.bg-slate-800 {
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.3);
+}
+
+/* 漸變文本 */
+.bg-gradient-to-r {
+    background-size: 200% 200%;
+}
+
+/* 動畫類 */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideInFromRight {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes slideOutToRight {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+}
+
+.animate-in {
+    animation: fadeIn 0.3s ease-out;
+}
+
+.animate-out {
+    animation: fadeIn 0.3s ease-out reverse;
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-out;
+}
+
+.fade-out {
+    animation: fadeIn 0.3s ease-out reverse;
+}
+
+.slide-in-from-right-4 {
+    animation: slideInFromRight 0.3s ease-out;
+}
+
+.slide-out-to-right-4 {
+    animation: slideOutToRight 0.3s ease-out;
+}
+
+/* 脈衝動畫 */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+.animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Chart.js 自訂樣式 */
+.chartjs-render-monitor {
+    animation: none;
+}
+
+/* 步驟項目懸停 */
+.step-item {
+    user-select: none;
+}
+
+.step-item:hover {
+    background-color: rgba(71, 85, 105, 0.5);
+}
+
+/* 程式碼區塊 */
+code {
+    font-family: 'Courier New', monospace;
+    letter-spacing: 0.5px;
+}
+
+/* 進度條 */
+#progressBar {
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+}
+
+/* 圖表容器 */
+#frequencyChart {
+    max-width: 100%;
+}
+
+/* Modal 背景 */
+#animationModal {
+    animation: fadeIn 0.3s ease-out;
+}
+
+#animationModal.hidden {
+    animation: fadeIn 0.3s ease-out reverse;
+}
+
+/* 響應式設計 */
+@media (max-width: 1024px) {
+    .grid-cols-1.lg\:col-span-2 {
+        grid-column: auto;
+    }
+}
+
+@media (max-width: 768px) {
+    /* 在小螢幕上調整字體大小 */
+    h1 {
+        font-size: 1.5rem;
+    }
+
+    /* 調整內邊距 */
+    .px-6 {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    /* 隱藏不必要的信息 */
+    .text-sm {
+        font-size: 0.75rem;
+    }
+}
+
+/* 深色主題樣式 */
+@media (prefers-color-scheme: dark) {
+    body {
+        color-scheme: dark;
+    }
+}
+
+/* 焦點狀態 */
+input[type="file"]:focus,
+button:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1),
+                0 0 0 6px rgba(59, 130, 246, 0.2);
+}
+
+/* 禁用狀態 */
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* 加載動畫 */
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+/* 漸變邊框 */
+.border-gradient {
+    position: relative;
+    background: linear-gradient(#1e293b, #1e293b) padding-box,
+                linear-gradient(135deg, #3b82f6, #8b5cf6) border-box;
+    border: 1px solid transparent;
+}
