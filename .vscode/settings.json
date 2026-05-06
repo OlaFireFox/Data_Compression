@@ -1,0 +1,10 @@
+{
+  "terminal.integrated.shellArgs.windows": [],
+  "terminal.integrated.profiles.windows": {
+    "PowerShell": {
+      "source": "PowerShell",
+      "args": ["-NoExit", "-Command", "& { .\\activate_env.ps1 }"]
+    }
+  },
+  "terminal.integrated.defaultProfile.windows": "PowerShell"
+}

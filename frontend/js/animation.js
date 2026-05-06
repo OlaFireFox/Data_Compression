@@ -26,12 +26,12 @@ class TransmissionAnimator {
         this.characters = [];
         this.animationSpeed = 1;
 
-        // SVG 容器的實際尺寸
-        this.svgWidth = 450;
-        this.svgHeight = 100;
-        this.trackLength = this.svgWidth - 40;
-        this.originalTrackY = 50;
-        this.huffmanTrackY = 160;
+        // SVG 容器的座標系統 (基於新的 viewBox="0 0 500 120")
+        this.svgWidth = 500;
+        this.svgHeight = 120;
+        this.trackLength = 460; // 從 20 到 480 的軌道長度
+        this.originalTrackY = 40;
+        this.huffmanTrackY = 105;
     }
 
     /**
@@ -44,11 +44,17 @@ class TransmissionAnimator {
         this.characters = Array.from(text);
         this.currentCharIndex = 0;
 
-        // 重置位置（SVG 圓圈使用 cx 屬性）
-        gsap.set(this.originalBit, { cx: 20 });
-        gsap.set(this.huffmanBit, { cx: 20 });
+        // 重置位置到起點（SVG 圓圈使用 attr.cx 屬性）
+        gsap.set(this.originalBit, { attr: { cx: 20 } });
+        gsap.set(this.huffmanBit, { attr: { cx: 20 } });
 
-        this.updateStatus('準備就緒', `總共 ${this.characters.length} 個字符`, '', '', '');
+        this.updateStatus(
+            '✓ 準備就緒',
+            `總共 ${this.characters.length} 個字符`,
+            `編碼表已載入`,
+            `壓縮率待計算`,
+            ''
+        );
     }
 
     /**

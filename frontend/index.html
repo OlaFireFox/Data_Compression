@@ -11,8 +11,8 @@
 </head>
 <body class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 min-h-screen text-slate-100">
     <!-- 導航條 -->
-    <nav class="bg-slate-950 bg-opacity-50 backdrop-blur-md border-b border-slate-700 sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+    <nav class="bg-slate-950 bg-opacity-50 backdrop-blur-md border-b border-slate-700 sticky top-0 z-50 w-full">
+        <div class="w-full px-4 lg:px-6 py-4 flex items-center justify-between">
             <div class="flex items-center gap-3">
                 <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
                     <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -29,9 +29,9 @@
         </div>
     </nav>
 
-    <div class="max-w-7xl mx-auto px-6 py-8">
+    <div class="w-full px-4 lg:px-6 py-8">
         <!-- 主容器 -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8">
             <!-- 左側 - 上傳區域 -->
             <div class="lg:col-span-2">
                 <!-- 上傳區域 -->
@@ -145,9 +145,9 @@
             </div>
 
             <!-- 右側 - 實時統計 -->
-            <div class="space-y-6">
+            <div class="flex flex-col gap-6 h-fit">
                 <!-- 動畫進度 -->
-                <div class="bg-slate-800 bg-opacity-50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700 sticky top-24">
+                <div class="bg-slate-800 bg-opacity-50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700">
                     <h2 class="text-lg font-semibold mb-4 text-slate-100">📊 即時統計</h2>
                     
                     <div class="space-y-4">
@@ -200,8 +200,8 @@
     </div>
 
     <!-- 動畫模態框 -->
-    <div id="animationModal" class="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
-        <div class="bg-slate-900 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-slate-700 shadow-2xl">
+    <div id="animationModal" class="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-sm hidden z-50 flex items-center justify-center p-2 lg:p-4">
+        <div class="bg-slate-900 rounded-2xl w-[98vw] lg:w-[95vw] max-h-[95vh] overflow-hidden flex flex-col border border-slate-700 shadow-2xl">
             <!-- 模態頭部 -->
             <div class="bg-slate-800 px-6 py-4 border-b border-slate-700 flex items-center justify-between">
                 <h2 class="text-xl font-semibold text-slate-100">🎬 Huffman 樹構建動畫</h2>
@@ -210,98 +210,121 @@
 
             <!-- 動畫內容 -->
             <div class="flex-1 overflow-y-auto p-6 space-y-6">
-                <!-- 樹可視化區域 -->
-                <div class="bg-slate-800 bg-opacity-50 rounded-xl p-6 border border-slate-700 min-h-96 flex flex-col items-center justify-center">
-                    <canvas id="treeCanvas" class="max-w-full max-h-80"></canvas>
+                <!-- 樹可視化區域 (60% 高度) -->
+                <div class="bg-slate-800 bg-opacity-50 rounded-xl p-4 lg:p-6 border border-slate-700 flex-grow flex flex-col items-center justify-center flex-shrink-0" style="height: 60vh; min-height: 400px;">
+                    <canvas id="treeCanvas" class="w-full h-full block" style="display: block;"></canvas>
                     <p id="treeEmptyMsg" class="text-slate-400">等待數據...</p>
                 </div>
 
-                <!-- 傳輸速度動畫區域 ⭐ 新增 -->
-                <div class="bg-slate-800 bg-opacity-50 rounded-xl p-6 border border-slate-700">
-                    <h3 class="text-lg font-semibold mb-4 text-slate-100">📊 傳輸速度對比</h3>
+                <!-- 動畫控制 + 傳輸對比統一布局 -->
+                <div class="bg-slate-800 bg-opacity-50 rounded-xl p-4 lg:p-6 border border-slate-700">
+                    <h3 class="text-lg font-semibold mb-4 text-slate-100">🎬 動畫控制與傳輸對比</h3>
                     
-                    <!-- SVG 容器 -->
-                    <div id="transmissionAnimationContainer" class="bg-slate-900 rounded-lg p-4 mb-4" style="height: 250px; position: relative; overflow: hidden;">
-                        <svg id="transmissionSVG" width="100%" height="100%" style="background: rgba(15, 23, 42, 0.5); border-radius: 8px;">
-                            <!-- 原始傳輸 (左邊) -->
-                            <g id="originalTransmissionGroup">
-                                <text x="20" y="30" class="text-xs font-mono" fill="#cbd5e1">原始 (8-bit)</text>
-                                <line x1="20" y1="50" x2="450" y2="50" stroke="#64748b" stroke-width="2" stroke-dasharray="5,5"/>
-                                <circle id="originalBit" cx="20" cy="50" r="6" fill="#3b82f6"/>
-                            </g>
-                            
-                            <!-- Huffman 傳輸 (右邊) -->
-                            <g id="huffmanTransmissionGroup">
-                                <text x="20" y="140" class="text-xs font-mono" fill="#cbd5e1">Huffman 壓縮</text>
-                                <line x1="20" y1="160" x2="450" y2="160" stroke="#64748b" stroke-width="2" stroke-dasharray="5,5"/>
-                                <circle id="huffmanBit" cx="20" cy="160" r="6" fill="#8b5cf6"/>
-                            </g>
-                            
-                            <!-- 時間標尺 -->
-                            <g id="timelineGroup" opacity="0.5">
-                                <text x="10" y="220" class="text-xs" fill="#94a3b8">0s</text>
-                                <text x="220" y="220" class="text-xs" fill="#94a3b8">時間</text>
-                                <text x="430" y="220" class="text-xs" fill="#94a3b8">T</text>
-                            </g>
-                        </svg>
-                    </div>
-
-                    <!-- 狀態文本框 -->
-                    <div class="bg-slate-700 bg-opacity-50 rounded-lg p-4 font-mono text-sm max-h-24 overflow-y-auto border border-slate-600">
-                        <div class="text-slate-300">
-                            <p>📍 <span id="statusLine1">準備開始...</span></p>
-                            <p>🔤 <span id="statusLine2">等待字符...</span></p>
-                            <p>💾 <span id="statusLine3">編碼: -</span></p>
-                            <p>📏 <span id="statusLine4">長度: - bits</span></p>
-                            <p>⚡ <span id="statusLine5">時長: - 秒</span></p>
+                    <!-- 主容器：左侧传输对比 + 右侧控制面板 -->
+                    <div class="flex flex-col lg:flex-row gap-6">
+                        
+                        <!-- ⭐ 左側：傳輸速度對比 (寬度縮小) -->
+                        <div class="lg:w-1/3 flex-shrink-0">
+                            <div class="bg-slate-900 rounded-lg p-4 border border-slate-600">
+                                <h4 class="text-sm font-semibold text-slate-200 mb-3">📊 傳輸速度對比</h4>
+                                <div id="transmissionAnimationContainer" class="bg-slate-800 rounded p-2 border border-slate-700" style="position: relative; overflow: hidden;">
+                                    <svg id="transmissionSVG" viewBox="0 0 500 120" preserveAspectRatio="xMidYMid meet" style="width: 100%; height: auto; background: rgba(15, 23, 42, 0.5); border-radius: 6px; display: block; min-height: 120px;">
+                                        <!-- 原始 8-bit 傳輸進度條 -->
+                                        <g id="originalTransmissionGroup">
+                                            <text x="5" y="20" fill="#cbd5e1" font-size="12" font-weight="bold">原始 (8-bit)</text>
+                                            <!-- 背景軌道 -->
+                                            <rect x="20" y="35" width="460" height="20" fill="rgba(100, 116, 139, 0.2)" stroke="#64748b" stroke-width="1" rx="4"/>
+                                            <!-- 進度條填充 -->
+                                            <rect id="originalProgressBar" x="20" y="35" width="0" height="20" fill="url(#originalGradient)" stroke="#3b82f6" stroke-width="1" rx="4"/>
+                                            <!-- 進度文字 -->
+                                            <text id="originalProgressText" x="250" y="50" text-anchor="middle" fill="#ffffff" font-size="10" font-weight="bold" pointer-events="none">0%</text>
+                                        </g>
+                                        
+                                        <!-- Huffman 壓縮傳輸進度條 -->
+                                        <g id="huffmanTransmissionGroup">
+                                            <text x="5" y="85" fill="#cbd5e1" font-size="12" font-weight="bold">Huffman</text>
+                                            <!-- 背景軌道 -->
+                                            <rect x="20" y="100" width="460" height="20" fill="rgba(100, 116, 139, 0.2)" stroke="#64748b" stroke-width="1" rx="4"/>
+                                            <!-- 進度條填充 -->
+                                            <rect id="huffmanProgressBar" x="20" y="100" width="0" height="20" fill="url(#huffmanGradient)" stroke="#8b5cf6" stroke-width="1" rx="4"/>
+                                            <!-- 進度文字 -->
+                                            <text id="huffmanProgressText" x="250" y="115" text-anchor="middle" fill="#ffffff" font-size="10" font-weight="bold" pointer-events="none">0%</text>
+                                        </g>
+                                        
+                                        <!-- 漸變定義 -->
+                                        <defs>
+                                            <linearGradient id="originalGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                                <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+                                                <stop offset="100%" style="stop-color:#60a5fa;stop-opacity:1" />
+                                            </linearGradient>
+                                            <linearGradient id="huffmanGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                                <stop offset="0%" style="stop-color:#8b5cf6;stop-opacity:1" />
+                                                <stop offset="100%" style="stop-color:#a78bfa;stop-opacity:1" />
+                                            </linearGradient>
+                                        </defs>
+                                    </svg>
+                                </div>
+                                
+                                <!-- 狀態信息 -->
+                                <div class="bg-slate-700 bg-opacity-30 rounded p-3 mt-3 font-mono text-xs border border-slate-600">
+                                    <p class="truncate text-slate-300 mb-1">📍 <span id="statusLine1">準備開始</span></p>
+                                    <p class="truncate text-slate-300 mb-1">🔤 <span id="statusLine2">等待字符</span></p>
+                                    <p class="truncate text-slate-300 mb-1">💾 <span id="statusLine3">編碼: -</span></p>
+                                    <p class="truncate text-slate-300 mb-1">📏 <span id="statusLine4">長度: - bits</span></p>
+                                    <p class="truncate text-slate-300">⚡ <span id="statusLine5">時長: - 秒</span></p>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </div>
+                        
+                        <!-- ⭐ 右側：控制面板 (步驟信息 + 播放控制) -->
+                        <div class="flex-1">
+                            <!-- 步驟信息 (3 列網格) -->
+                            <div class="grid grid-cols-3 gap-3 mb-4">
+                                <div class="bg-slate-700 bg-opacity-30 rounded-lg p-3 text-center border border-slate-600">
+                                    <p class="text-xs text-slate-400 mb-1">當前步驟</p>
+                                    <p class="text-xl font-bold text-blue-400">
+                                        <span id="currentStep">0</span>/<span id="totalSteps">0</span>
+                                    </p>
+                                </div>
+                                <div class="bg-slate-700 bg-opacity-30 rounded-lg p-3 text-center border border-slate-600">
+                                    <p class="text-xs text-slate-400 mb-1">左節點</p>
+                                    <p id="leftNodeInfo" class="text-sm text-slate-300 font-mono truncate">-</p>
+                                </div>
+                                <div class="bg-slate-700 bg-opacity-30 rounded-lg p-3 text-center border border-slate-600">
+                                    <p class="text-xs text-slate-400 mb-1">右節點</p>
+                                    <p id="rightNodeInfo" class="text-sm text-slate-300 font-mono truncate">-</p>
+                                </div>
+                            </div>
 
-                <!-- 動畫控制 -->
-                <div class="bg-slate-800 bg-opacity-50 rounded-xl p-6 border border-slate-700 space-y-4">
-                    <!-- 步驟信息 -->
-                    <div class="grid grid-cols-3 gap-4 mb-4">
-                        <div class="bg-slate-700 bg-opacity-30 rounded-lg p-3 text-center">
-                            <p class="text-xs text-slate-400 mb-1">當前步驟</p>
-                            <p class="text-2xl font-bold text-blue-400">
-                                <span id="currentStep">0</span>/<span id="totalSteps">0</span>
-                            </p>
-                        </div>
-                        <div class="bg-slate-700 bg-opacity-30 rounded-lg p-3 text-center">
-                            <p class="text-xs text-slate-400 mb-1">左節點</p>
-                            <p id="leftNodeInfo" class="text-sm text-slate-300 font-mono">-</p>
-                        </div>
-                        <div class="bg-slate-700 bg-opacity-30 rounded-lg p-3 text-center">
-                            <p class="text-xs text-slate-400 mb-1">右節點</p>
-                            <p id="rightNodeInfo" class="text-sm text-slate-300 font-mono">-</p>
-                        </div>
-                    </div>
+                            <!-- 播放控制按鈕 -->
+                            <div class="flex items-center gap-3 mb-4">
+                                <button id="prevStepBtn" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors text-sm">
+                                    ⏮️ 上一步
+                                </button>
+                                <button id="playBtn" class="flex-1 py-2 px-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 rounded-lg font-medium transition-all">
+                                    ▶️ 播放
+                                </button>
+                                <button id="nextStepBtn" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors text-sm">
+                                    下一步 ⏭️
+                                </button>
+                            </div>
 
-                    <!-- 播放控制 -->
-                    <div class="flex items-center gap-4">
-                        <button id="prevStepBtn" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors">
-                            ⏮️ 上一步
-                        </button>
-                        <button id="playBtn" class="flex-1 py-2 px-6 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 rounded-lg font-medium transition-all">
-                            ▶️ 播放
-                        </button>
-                        <button id="nextStepBtn" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors">
-                            下一步 ⏭️
-                        </button>
-                    </div>
+                            <!-- 播放速度 -->
+                            <div class="flex items-center gap-3 mb-4">
+                                <label class="text-sm text-slate-300 w-16">速度:</label>
+                                <input type="range" id="animationSpeed" min="0.5" max="3" step="0.5" value="1" class="flex-1">
+                                <span id="speedValue" class="text-sm text-slate-300 w-8">1x</span>
+                            </div>
 
-                    <!-- 播放速度 -->
-                    <div class="flex items-center gap-4">
-                        <label class="text-sm text-slate-300">播放速度:</label>
-                        <input type="range" id="animationSpeed" min="0.5" max="3" step="0.5" value="1" class="flex-1">
-                        <span id="speedValue" class="text-sm text-slate-300 w-8">1x</span>
-                    </div>
-
-                    <!-- 步驟列表 -->
-                    <div class="max-h-40 overflow-y-auto">
-                        <div id="stepsList" class="space-y-2">
-                            <!-- 步驟項將動態生成 -->
+                            <!-- 步驟列表 (可收縮) -->
+                            <details class="bg-slate-700 bg-opacity-30 rounded-lg p-3 border border-slate-600">
+                                <summary class="cursor-pointer text-sm font-semibold text-slate-200 hover:text-slate-100">
+                                    📋 樹構建步驟
+                                </summary>
+                                <div id="stepsList" class="space-y-2 mt-3 max-h-40 overflow-y-auto text-xs">
+                                    <!-- 步驟項將動態生成 -->
+                                </div>
+                            </details>
                         </div>
                     </div>
                 </div>
