@@ -661,19 +661,26 @@ async function playAnimation() {
                 updateAnimationUI();
             }
             
-            // ⭐ 執行智能路徑動畫（路徑對比 + 選擇動畫效果）
-            console.log(`   🧠 執行路徑對比邏輯...`);
-            const currentCharPath = await appState.treeVisualizer.smartPathAnimation(
+            // ⭐ 樹路徑動畫和進度條動畫並行執行（不互相阻塞）
+            console.log(`   🧠 執行路徑對比邏輯... 🎬 啟動進度條傳輸...`);
+            
+            // 並行啟動：路徑動畫和進度條動畫
+            const pathAnimationPromise = appState.treeVisualizer.smartPathAnimation(
                 char, 
                 appState.lastCharPath, 
                 speed
             );
             
+            const transmissionAnimationPromise = playTransmissionCharacterForStep(charIdx, speed);
+            
+            // 等待兩個動畫都完成
+            const [currentCharPath] = await Promise.all([
+                pathAnimationPromise,
+                transmissionAnimationPromise
+            ]);
+            
             // ⭐ 更新路徑追蹤狀態
             appState.lastCharPath = currentCharPath;
-            
-            // ⭐ 播放這個字符的傳輸動畫 (進度條競速)
-            await playTransmissionCharacterForStep(charIdx, speed);
         }
 
         console.log('\n═══════════════════════════════════════════════════');
@@ -725,9 +732,19 @@ async function playTransmissionCharacterForStep(charIdx, speed = 1) {
         const savedTime = originalTotalTime - huffmanTotalTime;
         const savedPercent = (savedTime / originalTotalTime * 100).toFixed(1);
 
-        // ⭐ 位元傳輸進度計算（改進版，基於位元而非字符數）
+        // ⭐ 位元傳輸進度計算 - 展現速度對比的關鍵
+        // 原始 100% = 完成所有原始位元 (312 bits)
+        // Huffman 100% = 完成所有 Huffman 位元 (194 bits)
+        // 這樣 Huffman 會因位元更少而更早到達 100%
         const totalChars = appState.originalText.length;
-        const totalBits = totalChars * 8; // 總原始位元數 (312 bits for 39 chars)
+        const totalOriginalBits = totalChars * 8; // 原始：312 bits
+        
+        // 計算總 Huffman 位元數（用於百分比計算）
+        let totalHuffmanBits = 0;
+        for (let i = 0; i < totalChars; i++) {
+            const c = appState.originalText[i];
+            totalHuffmanBits += appState.compressionResult.code_table[c].length;
+        }
         
         // 計算從開始到當前字符的位元累計
         let originalBitsBeforeChar = charIdx * 8;
@@ -744,12 +761,12 @@ async function playTransmissionCharacterForStep(charIdx, speed = 1) {
             }
         }
         
-        // 計算百分比（位元進度）
-        const startProgressOriginal = (originalBitsBeforeChar / totalBits) * 100;
-        const endProgressOriginal = (originalBitsAfterChar / totalBits) * 100;
+        // 計算百分比 - 兩條進度條各有各的 100% 目標
+        const startProgressOriginal = (originalBitsBeforeChar / totalOriginalBits) * 100;
+        const endProgressOriginal = (originalBitsAfterChar / totalOriginalBits) * 100;
         
-        const startProgressHuffman = (huffmanBitsBeforeChar / totalBits) * 100;
-        const endProgressHuffman = (huffmanBitsAfterChar / totalBits) * 100;
+        const startProgressHuffman = (huffmanBitsBeforeChar / totalHuffmanBits) * 100;
+        const endProgressHuffman = (huffmanBitsAfterChar / totalHuffmanBits) * 100;
 
         console.log(`   📍 字符: '${char === ' ' ? '⎵' : char}' (${charIdx + 1}/${totalChars}) | 編碼: ${code} (${code.length} bits) | 頻率: ${freq}`);
         console.log(`   📊 位元進度 - 原始: ${startProgressOriginal.toFixed(1)}% → ${endProgressOriginal.toFixed(1)}% | Huffman: ${startProgressHuffman.toFixed(1)}% → ${endProgressHuffman.toFixed(1)}%`);
