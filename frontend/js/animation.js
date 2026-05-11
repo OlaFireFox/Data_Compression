@@ -219,14 +219,20 @@ class TransmissionAnimator {
             return sum + (code ? code.length : 0);
         }, 0);
 
-        const compressionRatio = ((1 - huffmanTotalBits / originalTotalBits) * 100).toFixed(2);
+        // ✅ 統一公式：空間節省率 = ((原始 bits - 壓縮後 bits) / 原始 bits) * 100
+        // 防錯：如果原始大小為 0，返回 0
+        const spaceSavingRate = this.characters.length > 0 
+            ? ((originalTotalBits - huffmanTotalBits) / originalTotalBits * 100).toFixed(2)
+            : 0;
 
         return {
             totalCharacters: this.characters.length,
             originalTotalBits,
             huffmanTotalBits,
-            compressionRatio,
-            speedup: (originalTotalBits / huffmanTotalBits).toFixed(2)
+            compressionRatio: spaceSavingRate,  // ✅ 空間節省率百分比
+            speedup: this.characters.length > 0 
+                ? (originalTotalBits / huffmanTotalBits).toFixed(2)
+                : 0
         };
     }
 }

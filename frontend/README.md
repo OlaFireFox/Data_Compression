@@ -1,18 +1,36 @@
-# Huffman 壓縮可視化 - 前端
+# 前端應用文檔
 
 現代化的 Web 前端，用於與 Huffman 壓縮演算法後端互動，支援完整的可視化體驗。
+
+## 快速開始
+
+```bash
+# 進入前端目錄
+cd frontend
+
+# 啟動前端服務（運行在 http://localhost:3000）
+python server.py
+```
+
+確保後端服務已在另一個終端運行：
+```bash
+cd backend
+python run.py  # 運行在 http://localhost:8000
+```
 
 ## 📁 項目結構
 
 ```
 frontend/
 ├── index.html              # 主 HTML 頁面
+├── server.py               # 前端靜態文件服務器
 ├── css/
-│   └── style.css          # 自訂樣式
+│   └── style.css          # Tailwind CSS 樣式
 ├── js/
 │   ├── main.js            # 主應用邏輯
 │   ├── api.js             # API 通信層
-│   └── visualization.js   # 樹可視化模組
+│   ├── visualization.js   # Huffman 樹可視化
+│   └── animation.js       # 動畫效果
 └── README.md              # 本文檔
 ```
 
@@ -22,7 +40,7 @@ frontend/
 - **Tailwind CSS** - 實用優先的 CSS 框架（CDN）
 - **Vanilla JavaScript** - 無依賴的純 JavaScript
 - **Chart.js** - 字符頻率統計圖表
-- **Canvas API** - Huffman 樹的繪製
+- **Canvas API** - Huffman 樹的動態繪製
 
 ## ✨ 核心功能
 
@@ -34,20 +52,77 @@ frontend/
 
 ### 2. 實時狀態顯示
 - ✅ 檔案預覽
-- ✅ API 連線狀態
-- ✅ 構建步驟計數
+- ✅ API 連線狀態檢查
+- ✅ Huffman 樹構建步驟動畫
 - ✅ 獨特字符統計
 
 ### 3. 壓縮結果呈現
 - ✅ 原始檔案大小
 - ✅ 壓縮後大小
 - ✅ 壓縮率百分比
-- ✅ 字符頻率圖表
-- ✅ 編碼表展示
+- ✅ 字符頻率柱狀圖表
+- ✅ Huffman 編碼表展示
 
 ### 4. 動畫可視化
-- ✅ Huffman 樹動態繪製
+- ✅ Huffman 樹實時動態繪製
+- ✅ 樹節點連接路徑動畫
 - ✅ 逐步播放構建過程
+- ✅ 平滑的過渡效果
+
+## 文件說明
+
+| 檔案 | 說明 |
+|------|------|
+| `index.html` | 應用主頁面，包含上傳區、結果區、樹形圖等 |
+| `js/api.js` | 與後端 API 通信的接口函數 |
+| `js/main.js` | 核心應用邏輯和事件處理 |
+| `js/visualization.js` | Canvas 繪製 Huffman 樹的實現 |
+| `js/animation.js` | 動畫效果和過渡邏輯 |
+| `css/style.css` | 自訂樣式（補充 Tailwind CSS） |
+| `server.py` | 簡單的靜態文件服務器，支援 CORS |
+
+## 環境配置
+
+### API 通信
+
+編輯 `js/api.js` 中的 `API_BASE_URL` 來配置後端地址：
+
+```javascript
+const API_BASE_URL = 'http://localhost:8000';  // 默認本地地址
+```
+
+### CORS 設置
+
+前端服務器已配置 CORS，允許與後端通信。如改變端口，確保後端也相應配置。
+
+## 故障排除
+
+### 無法連接到後端
+- 檢查後端是否運行：訪問 http://localhost:8000
+- 檢查 API_BASE_URL 配置是否正確
+- 查看瀏覽器控制台（F12）的網絡選項卡和錯誤信息
+
+### 樹形圖不顯示
+- 確認瀏覽器支援 Canvas API
+- 檢查 JavaScript 控制台是否有錯誤
+- 嘗試刷新頁面
+
+### 檔案上傳失敗
+- 確認檔案格式為 .txt
+- 檢查檔案大小是否超過 10MB
+- 查看瀏覽器控制台的詳細錯誤信息
+
+## 性能優化
+
+- 使用 Tailwind CDN 進行快速加載
+- 使用 Vanilla JavaScript 避免依賴開銷
+- Canvas 繪製優化樹形圖性能
+- 動畫使用 requestAnimationFrame 實現流暢效果
+
+## 相關資源
+
+- 查看 [主 README](../README.md) 了解完整項目信息
+- 查看 [後端 README](../backend/README.md) 了解 API 詳情
 - ✅ 可調整播放速度
 - ✅ 前/後/逐步導航
 

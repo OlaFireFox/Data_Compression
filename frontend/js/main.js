@@ -59,6 +59,41 @@ const elements = {
     notificationContainer: document.getElementById('notificationContainer')
 };
 
+// ============= 計算函數 =============
+/**
+ * 計算空間節省率 (Space Saving Rate)
+ * 公式: ((原始 bits - 壓縮後 bits) / 原始 bits) * 100
+ * 
+ * @param {number} originalBytes - 原始文件大小（字節）
+ * @param {number} compressedBits - 壓縮後文件大小（bits）
+ * @returns {string} 百分比字符串，例如 "42.90%"
+ */
+function calculateSpaceSavingRate(originalBytes, compressedBits) {
+    // 防錯處理：如果原始大小為 0，返回 0%
+    if (originalBytes <= 0) {
+        console.warn('⚠️ 原始大小為 0 或負數，返回 0%');
+        return '0.00';
+    }
+    
+    // ✅ 統一單位轉換：原始大小 (字節) → bits
+    const originalBits = originalBytes * 8;
+    
+    // 計算節省率百分比
+    // 例如：(667 * 8 bits - 2958 bits) / (667 * 8 bits) = (5336 - 2958) / 5336 = 44.58%
+    const savingRatio = (originalBits - compressedBits) / originalBits;
+    const savingPercentage = savingRatio * 100;
+    
+    // ✅ 使用 toFixed(2) 保留兩位小數
+    const formatted = savingPercentage.toFixed(2);
+    
+    console.log(`📊 空間節省率計算：`);
+    console.log(`   原始: ${originalBytes} 字節 = ${originalBits} bits`);
+    console.log(`   壓縮後: ${compressedBits} bits`);
+    console.log(`   節省率: ${formatted}%`);
+    
+    return formatted;
+}
+
 // ============= 初始化 =============
 document.addEventListener('DOMContentLoaded', () => {
     console.log('應用初始化中...');
@@ -250,7 +285,14 @@ function displayCompressionResult(result) {
     // 顯示統計信息
     elements.resultOriginalSize.textContent = result.original_size;
     elements.resultCompressedSize.textContent = result.encoded_size;
-    elements.resultCompressionRatio.textContent = result.compression_ratio;
+    
+    // ✅ 計算空間節省率（單位統一為 bits）
+    // 公式：((原始 bits - 壓縮後 bits) / 原始 bits) * 100
+    const spaceSavingRate = calculateSpaceSavingRate(
+        result.original_size,    // 原始 bits
+        result.encoded_size      // 壓縮後 bits
+    );
+    elements.resultCompressionRatio.textContent = spaceSavingRate;
 
     // 更新右側統計
     elements.buildStepsCount.textContent = result.build_steps.length;
@@ -387,8 +429,9 @@ async function downloadBinFile() {
     try {
         showNotification('正在下載...', 'info');
         
+        // ⭐ 粗高壓縮檔案 (.gz 格式 - 標準 GZIP)
         const filename = appState.compressionResult.compressed_filename || 
-                        `${Date.now()}_compressed.bin`;
+                        `${Date.now()}_compressed.gz`;
         
         const blob = await API.downloadCompressed(filename);
         

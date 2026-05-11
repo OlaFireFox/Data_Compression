@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from pathlib import Path
 
 from app.core.huffman import HuffmanCoder
+from app.core.gzip_utils import save_text_to_gzip
 from app.models.schemas import (
     CompressionResponse,
     DecompressionRequest,
@@ -65,14 +66,24 @@ async def upload_and_compress(file: UploadFile = File(...)):
         with open(upload_path, "w", encoding="utf-8") as f:
             f.write(text)
         
-        # 保存壓縮後的二進位文件
-        compressed_filename = f"{timestamp}_compressed.bin"
+        # ⭐ 保存壓縮後的檔案為 GZIP 格式
+        # 注意: 直接壓縮原始文本內容，不是 Huffman 編碼結果
+        # 這樣解壓後就是可讀的 .txt 檔案
+        compressed_filename = f"{timestamp}_compressed.gz"
         compressed_path = COMPRESSED_DIR / compressed_filename
         
-        # 將編碼文本轉換為字節
-        encoded_bytes = bytes(int(encoded_text[i:i+8], 2) for i in range(0, len(encoded_text), 8))
-        with open(compressed_path, "wb") as f:
-            f.write(encoded_bytes)
+        # 使用新的 GZIP 儲存函數，壓縮原始文本
+        save_result = save_text_to_gzip(
+            text_content=text,  # ⭐ 使用原始文本
+            compressed_path=compressed_path,
+            filename="result.txt"
+        )
+        
+        if not save_result["success"]:
+            raise HTTPException(
+                status_code=500,
+                detail=f"GZIP 儲存失敗: {save_result.get('error', '未知錯誤')}"
+            )
         
         # 保存元數據
         metadata_filename = f"{timestamp}_metadata.json"
@@ -95,12 +106,12 @@ async def upload_and_compress(file: UploadFile = File(...)):
             encoded_text=encoded_text,
             original_size=metadata["original_size"],
             encoded_size=metadata["encoded_size"],
-            compression_ratio=metadata["compression_ratio"],
+            compression_ratio=save_result.get('compression_ratio', metadata["compression_ratio"]),
             frequencies=metadata["frequencies"],
             code_table=metadata["code_table"],
             build_steps=metadata["build_steps"],
             tree_structure=tree_structure,
-            compressed_filename=compressed_filename  # ⭐ 新增壓縮檔案名稱
+            compressed_filename=compressed_filename  # ⭐ 壓縮檔案名稱
         )
     
     except HTTPException:
@@ -140,9 +151,13 @@ async def decompress(request: DecompressionRequest):
 @router.get("/download/{filename}")
 async def download_compressed(filename: str):
     """
-    下載壓縮後的 .bin 文件
+    下載壓縮後的 .gz 文件 (標準 GZIP 格式)
     
-    - **filename**: 壓縮文件名
+    - **filename**: 壓縮文件名 (副檔名: .gz)
+    
+    ⭐ 輸出檔案格式: GZIP (.gz)
+    ⭐ 可直接用 7-Zip 或 WinRAR 解壓
+    ⭐ 解壓後是原始文本 result.txt
     """
     try:
         file_path = COMPRESSED_DIR / filename
@@ -150,10 +165,18 @@ async def download_compressed(filename: str):
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="文件不存在")
         
+        # ⭐ 強制副檔名為 .gz
+        if not filename.endswith('.gz'):
+            filename = filename + '.gz'
+        
+        # ⭐ 返回正確的 GZIP Content-Type
         return FileResponse(
             path=file_path,
             filename=filename,
-            media_type="application/octet-stream"
+            media_type="application/gzip",  # ✅ GZIP MIME type
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
         )
     
     except HTTPException:
