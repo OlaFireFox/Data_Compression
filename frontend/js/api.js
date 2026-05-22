@@ -197,6 +197,62 @@ function formatBits(bits) {
     return formatFileSize(bytes) + ` (${bits} bits)`;
 }
 
+/**
+ * 壓縮圖片 (POST /api/image/compress)
+ * @param {File} file - 圖片檔案
+ * @param {number} quality - 壓縮品質 (1-100)
+ * @param {string} mode - 色彩模式 ("color" / "grayscale")
+ * @returns {Promise<APIResponse>}
+ */
+async function compressImage(file, quality, mode) {
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('quality', quality);
+        formData.append('mode', mode);
+
+        const response = await fetch(`${API_BASE_URL}/image/compress`, {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            return new APIResponse(true, data);
+        } else {
+            return new APIResponse(false, null, data.detail || '圖片壓縮失敗');
+        }
+    } catch (error) {
+        return new APIResponse(false, null, error.message);
+    }
+}
+
+/**
+ * 獲取特定 8x8 區塊計算矩陣 (GET /api/image/block-detail)
+ * @param {string} filename - 已保存的圖片檔案名稱
+ * @param {number} quality - 壓縮品質
+ * @param {string} mode - 色彩模式
+ * @param {number} blockRow - 區塊行索引
+ * @param {number} blockCol - 區塊列索引
+ * @returns {Promise<APIResponse>}
+ */
+async function getBlockDetail(filename, quality, mode, blockRow, blockCol) {
+    try {
+        const url = `${API_BASE_URL}/image/block-detail?filename=${encodeURIComponent(filename)}&quality=${quality}&mode=${encodeURIComponent(mode)}&block_row=${blockRow}&block_col=${blockCol}`;
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            return new APIResponse(true, data.matrices);
+        } else {
+            return new APIResponse(false, null, data.detail || '獲取區塊數據失敗');
+        }
+    } catch (error) {
+        return new APIResponse(false, null, error.message);
+    }
+}
+
 // 導出為全局變數
 window.API = {
     checkAPIConnection,
@@ -205,5 +261,7 @@ window.API = {
     downloadCompressed,
     getCompressionHistory,
     formatFileSize,
-    formatBits
+    formatBits,
+    compressImage,
+    getBlockDetail
 };

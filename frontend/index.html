@@ -12,26 +12,37 @@
 <body class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 min-h-screen text-slate-100">
     <!-- 導航條 -->
     <nav class="bg-slate-950 bg-opacity-50 backdrop-blur-md border-b border-slate-700 sticky top-0 z-50 w-full">
-        <div class="w-full px-4 lg:px-6 py-4 flex items-center justify-between">
+        <div class="w-full px-4 lg:px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
                     <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                     </svg>
                 </div>
                 <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                    Huffman 壓縮可視化
+                    資料壓縮視覺化系統
                 </h1>
             </div>
-            <div class="text-sm text-slate-400">
-                v1.0.0 | <span id="api-status" class="text-red-400">離線</span>
+
+            <!-- Tab 切換器 -->
+            <div class="flex bg-slate-900 bg-opacity-80 rounded-xl p-1 border border-slate-700 self-center md:self-auto">
+                <button id="tab-huffman" class="px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 bg-blue-600 text-white shadow-md">
+                    🔤 Huffman 文字壓縮
+                </button>
+                <button id="tab-image" class="px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 text-slate-400 hover:text-slate-200">
+                    🖼️ JPEG/DCT 圖片壓縮
+                </button>
+            </div>
+
+            <div class="text-sm text-slate-400 text-right">
+                v1.1.0 | <span id="api-status" class="text-red-400">離線</span>
             </div>
         </div>
     </nav>
 
     <div class="w-full px-4 lg:px-6 py-8">
         <!-- 主容器 -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8">
+        <div id="huffman-section" class="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8">
             <!-- 左側 - 上傳區域 -->
             <div class="lg:col-span-2">
                 <!-- 上傳區域 -->
@@ -198,6 +209,310 @@
                 </div>
             </div>
         </div>
+
+        <!-- 圖片壓縮主容器 -->
+        <div id="image-section" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8">
+            <!-- 左側 - 圖片預覽與矩陣分析 -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- 上傳區域 -->
+                <div class="bg-slate-800 bg-opacity-50 backdrop-blur-sm rounded-2xl border-2 border-dashed border-slate-600 p-12 text-center cursor-pointer transition-all duration-300 hover:border-blue-500 hover:bg-slate-800 hover:shadow-lg hover:shadow-blue-500/10"
+                     id="imageDropZone">
+                    <input type="file" id="imageFileInput" class="hidden" accept="image/*" />
+                    <div class="flex flex-col items-center gap-4">
+                        <div class="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center">
+                            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-xl font-semibold text-slate-100">拖放圖片到此</p>
+                            <p class="text-sm text-slate-400 mt-1">或點擊選擇圖片檔案</p>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-4">支援 JPG, JPEG, PNG, BMP, WEBP | 最大 10MB</p>
+                    </div>
+                </div>
+
+                <!-- 圖片對比展示 -->
+                <div id="imageWorkspace" class="hidden bg-slate-800 bg-opacity-50 rounded-2xl p-6 border border-slate-700 space-y-6">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-semibold text-slate-100 flex items-center gap-2">
+                            🖼️ 圖片壓縮對比 <span class="text-xs font-normal text-slate-400">(點擊左圖 8x8 區塊以查看詳細 DCT 運算)</span>
+                        </h3>
+                        <button id="clearImageBtn" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition-colors">
+                            清除圖片
+                        </button>
+                    </div>
+
+                    <!-- Canvas 對比區 -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- 原始圖片 + 8x8 懸浮網格 -->
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-medium text-blue-400">原始圖片 & 8x8 區塊網格</span>
+                                <span id="hoverCoords" class="text-xs font-mono text-slate-400">滑鼠位置: -</span>
+                            </div>
+                            <div class="relative bg-slate-900 rounded-xl overflow-hidden border border-slate-700 flex items-center justify-center p-2" style="min-height: 300px;">
+                                <canvas id="originalCanvas" class="max-w-full h-auto cursor-crosshair shadow-inner"></canvas>
+                                <!-- 用於繪製選中框和懸停框的疊加層 -->
+                                <canvas id="gridOverlayCanvas" class="absolute top-2 left-2 pointer-events-none"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- 重構圖片 -->
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-medium text-purple-400">重建圖片 (DCT-IDCT 解壓後)</span>
+                                <span class="text-xs font-mono text-slate-400" id="blockInfo">選中區塊: 行 0, 列 0</span>
+                            </div>
+                            <div class="relative bg-slate-900 rounded-xl overflow-hidden border border-slate-700 flex items-center justify-center p-2" style="min-height: 300px;">
+                                <img id="reconstructedImage" class="max-w-full h-auto object-contain" alt="Reconstructed image will appear here" />
+                                <div id="compressingSpinner" class="hidden absolute inset-0 bg-slate-950 bg-opacity-70 flex items-center justify-center flex-col gap-3">
+                                    <div class="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                    <span class="text-sm text-slate-300">正在進行 DCT 計算...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 8x8 區塊詳細矩陣計算分析板 -->
+                <div id="blockDetailPanel" class="hidden bg-slate-800 bg-opacity-50 rounded-2xl p-6 border border-slate-700 space-y-6">
+                    <div class="border-b border-slate-700 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-100 flex items-center gap-2">
+                                📊 8x8 區塊數學運算分解
+                            </h3>
+                            <p class="text-xs text-slate-400 mt-1">選中座標：行 <span id="detailRow">0</span>, 列 <span id="detailCol">0</span> (Y 亮度通道)</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded bg-blue-500"></span>
+                            <span class="text-xs text-slate-300">正值</span>
+                            <span class="w-3 h-3 rounded bg-purple-600"></span>
+                            <span class="text-xs text-slate-300">負值</span>
+                            <span class="w-3 h-3 rounded bg-slate-700"></span>
+                            <span class="text-xs text-slate-300">零</span>
+                        </div>
+                    </div>
+
+                    <!-- 矩陣卡片輪播或網格 -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                        <!-- 1. 原始像素值 -->
+                        <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/80">
+                            <div class="flex justify-between items-center mb-3">
+                                <h4 class="text-xs font-bold uppercase tracking-wide text-blue-400">1. 原始像素 (0~255)</h4>
+                                <span class="text-[10px] text-slate-500">A</span>
+                            </div>
+                            <div class="grid grid-cols-8 gap-0.5 font-mono text-[10px] text-center" id="matrixOriginal">
+                                <!-- 64 cells -->
+                            </div>
+                        </div>
+
+                        <!-- 2. 減去 128 (零點偏移) -->
+                        <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/80">
+                            <div class="flex justify-between items-center mb-3">
+                                <h4 class="text-xs font-bold uppercase tracking-wide text-blue-400">2. 零偏後 (-128~127)</h4>
+                                <span class="text-[10px] text-slate-500">A - 128</span>
+                            </div>
+                            <div class="grid grid-cols-8 gap-0.5 font-mono text-[10px] text-center" id="matrixShifted">
+                                <!-- 64 cells -->
+                            </div>
+                        </div>
+
+                        <!-- 3. DCT 轉換係數 -->
+                        <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/80">
+                            <div class="flex justify-between items-center mb-3">
+                                <h4 class="text-xs font-bold uppercase tracking-wide text-purple-400">3. 2D DCT 係數 (頻域)</h4>
+                                <span class="text-[10px] text-slate-500">D = T*A*T'</span>
+                            </div>
+                            <div class="grid grid-cols-8 gap-0.5 font-mono text-[10px] text-center" id="matrixDct">
+                                <!-- 64 cells -->
+                            </div>
+                        </div>
+
+                        <!-- 4. 量化矩陣 (依品質縮放) -->
+                        <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/80">
+                            <div class="flex justify-between items-center mb-3">
+                                <h4 class="text-xs font-bold uppercase tracking-wide text-amber-500">4. 量化表 (Quality)</h4>
+                                <span class="text-[10px] text-slate-500">Q</span>
+                            </div>
+                            <div class="grid grid-cols-8 gap-0.5 font-mono text-[10px] text-center" id="matrixQuantTable">
+                                <!-- 64 cells -->
+                            </div>
+                        </div>
+
+                        <!-- 5. 量化後係數 (大多為 0) -->
+                        <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/80">
+                            <div class="flex justify-between items-center mb-3">
+                                <h4 class="text-xs font-bold uppercase tracking-wide text-green-400">5. 量化結果 (大量歸零)</h4>
+                                <span class="text-[10px] text-slate-500">C = round(D/Q)</span>
+                            </div>
+                            <div class="grid grid-cols-8 gap-0.5 font-mono text-[10px] text-center" id="matrixQuantized">
+                                <!-- 64 cells -->
+                            </div>
+                        </div>
+
+                        <!-- 6. 反量化 & 反 DCT 重建 -->
+                        <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/80">
+                            <div class="flex justify-between items-center mb-3">
+                                <h4 class="text-xs font-bold uppercase tracking-wide text-emerald-400">6. 重建像素 (0~255)</h4>
+                                <span class="text-[10px] text-slate-500">R = IDCT(C*Q) + 128</span>
+                            </div>
+                            <div class="grid grid-cols-8 gap-0.5 font-mono text-[10px] text-center" id="matrixReconstructed">
+                                <!-- 64 cells -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Zig-Zag 序列化與掃描動畫 -->
+                    <div class="bg-slate-900/40 rounded-xl p-6 border border-slate-700 space-y-4">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                            <div>
+                                <h4 class="text-sm font-semibold text-slate-200">🔄 Zig-Zag 蛇形掃描序列化 (熵編碼前置步驟)</h4>
+                                <p class="text-xs text-slate-400 mt-1">藉由斜向掃描將低頻(能量集中處)排在前，高頻零值排在後，能大幅提升 RLE 壓縮比率。</p>
+                            </div>
+                            <!-- 播放按鈕與滑桿 -->
+                            <div class="flex items-center gap-2">
+                                <button id="zigzagPlayBtn" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium transition-colors">
+                                    ▶️ 播放掃描
+                                </button>
+                                <button id="zigzagStepBtn" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded text-xs font-medium transition-colors">
+                                    Step ⏭️
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
+                            <!-- Zigzag 走線圖解 Canvas -->
+                            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 flex justify-center items-center">
+                                <canvas id="zigzagCanvas" width="160" height="160" class="bg-slate-900 rounded"></canvas>
+                            </div>
+                            <!-- 序列化一維陣列展示 -->
+                            <div class="lg:col-span-2 space-y-3">
+                                <div class="flex justify-between items-center text-xs">
+                                    <span class="text-slate-400">當前掃描索引: <span id="zigzagIndexText" class="font-mono text-blue-400">0</span>/63</span>
+                                    <span class="text-slate-400">值: <span id="zigzagValueText" class="font-mono text-purple-400">0</span></span>
+                                </div>
+                                <!-- 一維陣列儲存盒 -->
+                                <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 font-mono text-[10px] max-h-32 overflow-y-auto" id="zigzagArrayContainer">
+                                    <!-- Dynamic array elements -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右側 - 圖片壓縮控制與即時統計 -->
+            <div class="flex flex-col gap-6 h-fit">
+                <!-- 壓縮控制面板 -->
+                <div class="bg-slate-800 bg-opacity-50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700 space-y-6">
+                    <h2 class="text-lg font-semibold text-slate-100 flex items-center gap-2 border-b border-slate-700 pb-3">
+                        ⚙️ 壓縮設定
+                    </h2>
+                    
+                    <!-- 色彩模式 -->
+                    <div class="space-y-3">
+                        <label class="text-sm text-slate-300 font-medium block">色彩模式</label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <label class="flex items-center justify-center gap-2 py-2 px-3 bg-slate-900/60 border border-slate-700 rounded-lg cursor-pointer hover:bg-slate-700/40 transition-colors">
+                                <input type="radio" name="imageMode" value="color" checked class="text-blue-500 focus:ring-0" />
+                                <span class="text-sm font-medium text-slate-200">彩色 (YCbCr)</span>
+                            </label>
+                            <label class="flex items-center justify-center gap-2 py-2 px-3 bg-slate-900/60 border border-slate-700 rounded-lg cursor-pointer hover:bg-slate-700/40 transition-colors">
+                                <input type="radio" name="imageMode" value="grayscale" class="text-blue-500 focus:ring-0" />
+                                <span class="text-sm font-medium text-slate-200">灰階 (僅 Y)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- 品質因子 Quality -->
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center text-sm">
+                            <label class="text-slate-300 font-medium">壓縮品質 (Quality Factor)</label>
+                            <span id="qualityValText" class="font-bold text-blue-400 text-base">50</span>
+                        </div>
+                        <input type="range" id="imageQuality" min="1" max="100" value="50" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500" />
+                        <div class="flex justify-between text-[10px] text-slate-500">
+                            <span>最高壓縮率 / 低品質 (1)</span>
+                            <span>最低壓縮率 / 高無損 (100)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 即時統計 Panel -->
+                <div class="bg-slate-800 bg-opacity-50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700 space-y-4">
+                    <h2 class="text-lg font-semibold text-slate-100 border-b border-slate-700 pb-3 flex items-center gap-2">
+                        📈 JPEG 壓縮效能指標
+                    </h2>
+
+                    <div class="space-y-4">
+                        <!-- 解析度 -->
+                        <div class="bg-slate-700 bg-opacity-30 rounded-lg p-4 border border-slate-700/50">
+                            <p class="text-xs text-slate-400 uppercase tracking-wide mb-1">影像維度與區塊數</p>
+                            <p class="text-lg font-bold text-slate-200">
+                                <span id="imgResolution">-</span>
+                            </p>
+                            <p class="text-xs text-slate-500 mt-0.5">切割為 <span id="imgBlockCount" class="font-mono text-blue-400 font-semibold">0</span> 個 8x8 像素方塊</p>
+                        </div>
+
+                        <!-- 檔案大小對比 -->
+                        <div class="bg-slate-700 bg-opacity-30 rounded-lg p-4 border border-slate-700/50">
+                            <p class="text-xs text-slate-400 uppercase tracking-wide mb-2">壓縮前後大小比較</p>
+                            <div class="flex justify-between items-baseline mb-1">
+                                <span class="text-xs text-slate-400">原始大小:</span>
+                                <span class="text-sm font-semibold text-slate-300" id="imgOriginalSize">-</span>
+                            </div>
+                            <div class="flex justify-between items-baseline">
+                                <span class="text-xs text-slate-400">估計 JPEG:</span>
+                                <span class="text-base font-bold text-purple-400" id="imgCompressedSize">-</span>
+                            </div>
+                        </div>
+
+                        <!-- 壓縮比率 -->
+                        <div class="bg-slate-700 bg-opacity-30 rounded-lg p-4 border border-slate-700/50">
+                            <p class="text-xs text-slate-400 uppercase tracking-wide mb-1">壓縮比 (Compression Ratio)</p>
+                            <p class="text-2xl font-extrabold text-green-400">
+                                <span id="imgRatio">-</span><span class="text-xs font-normal text-slate-400"> 倍</span>
+                            </p>
+                            <p class="text-xs text-slate-500 mt-1">空間節省約 <span id="imgSavingsPercent" class="font-semibold text-green-300">-</span></p>
+                        </div>
+
+                        <!-- 零係數比率 -->
+                        <div class="bg-slate-700 bg-opacity-30 rounded-lg p-4 border border-slate-700/50">
+                            <p class="text-xs text-slate-400 uppercase tracking-wide mb-1">量化零值率 (Zero Coefficient Ratio)</p>
+                            <p class="text-2xl font-bold text-amber-400">
+                                <span id="imgZeroPercent">-</span><span class="text-xs font-normal text-slate-400">%</span>
+                            </p>
+                            <p class="text-xs text-slate-500 mt-1">量化後 AC/DC 被歸零的比率，為壓縮的主力來源</p>
+                        </div>
+
+                        <!-- 重建品質 PSNR -->
+                        <div class="bg-slate-700 bg-opacity-30 rounded-lg p-4 border border-slate-700/50">
+                            <p class="text-xs text-slate-400 uppercase tracking-wide mb-1">峰值訊雜比 (PSNR)</p>
+                            <p class="text-2xl font-bold text-blue-400">
+                                <span id="imgPsnr">-</span><span class="text-xs font-normal text-slate-400"> dB</span>
+                            </p>
+                            <p class="text-[10px] text-slate-500 mt-1">
+                                評估失真度。&gt;30dB 代表品質良好；高 Q 伴隨高 PSNR 且方塊效應小。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 說明說明 -->
+                <div class="bg-slate-800 bg-opacity-50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700">
+                    <h3 class="text-sm font-semibold mb-3 text-slate-100 flex items-center gap-1.5">
+                        💡 圖片壓縮原理
+                    </h3>
+                    <ul class="text-xs text-slate-400 space-y-2 leading-relaxed">
+                        <li>1. **色彩轉換**：將 RGB 轉為 YCbCr，分離亮度與色度資訊（人眼對亮度較敏感）。</li>
+                        <li>2. **分塊計算**：將影像切為 8x8 的像素區塊，獨立進行二維離散餘弦轉換 (2D-DCT)。</li>
+                        <li>3. **頻域量化**：將 DCT 係數除以量化表並四捨五入。品質因子 (1-100) 會縮放量化表，數值越大，過濾的高頻信號越多，零係數也就越多。</li>
+                        <li>4. **熵編碼**：使用 Zig-zag 掃描將二維矩陣扁平化為一維，後續進行 Huffman 等壓縮。</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- 動畫模態框 -->
@@ -351,6 +666,7 @@
     <script src="js/api.js"></script>
     <script src="js/visualization.js"></script>
     <script src="js/animation.js"></script>
+    <script src="js/image_visualizer.js"></script>
     <script src="js/main.js"></script>
 </body>
 </html>

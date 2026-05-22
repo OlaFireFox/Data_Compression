@@ -4,12 +4,13 @@ API 路由
 import os
 import json
 from datetime import datetime
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from fastapi.responses import FileResponse
 from pathlib import Path
 
 from app.core.huffman import HuffmanCoder
 from app.core.gzip_utils import save_text_to_gzip
+from app.core.image_dct import process_image_dct, get_block_matrices
 from app.models.schemas import (
     CompressionResponse,
     DecompressionRequest,
@@ -223,3 +224,71 @@ async def get_compression_history():
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"獲取歷史記錄失敗: {str(e)}")
+
+
+@router.post("/image/compress")
+async def image_compress(
+    file: UploadFile = File(...),
+    quality: int = Form(50),
+    mode: str = Form("color")
+):
+    try:
+        # 驗證文件類型
+        valid_extensions = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
+        ext = Path(file.filename).suffix.lower()
+        if ext not in valid_extensions:
+            raise HTTPException(status_code=400, detail="不支援的圖片格式，僅支援 JPG/JPEG/PNG/BMP/WEBP")
+        
+        # 保存原始圖片
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_filename = f"{timestamp}_{file.filename}"
+        upload_path = UPLOADS_DIR / safe_filename
+        
+        contents = await file.read()
+        with open(upload_path, "wb") as f:
+            f.write(contents)
+            
+        # 執行 DCT 壓縮
+        reconstructed_data_uri, stats = process_image_dct(
+            image_path=str(upload_path),
+            quality=quality,
+            mode=mode
+        )
+        
+        return {
+            "success": True,
+            "filename": safe_filename,
+            "reconstructed_image": reconstructed_data_uri,
+            "stats": stats
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"圖片壓縮處理失敗: {str(e)}")
+
+
+@router.get("/image/block-detail")
+async def image_block_detail(
+    filename: str,
+    quality: int,
+    mode: str,
+    block_row: int,
+    block_col: int
+):
+    try:
+        file_path = UPLOADS_DIR / filename
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="原始圖片不存在")
+        
+        matrices = get_block_matrices(
+            image_path=str(file_path),
+            quality=quality,
+            mode=mode,
+            block_row=block_row,
+            block_col=block_col
+        )
+        return {
+            "success": True,
+            "matrices": matrices
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"獲取區塊詳細數據失敗: {str(e)}")
+

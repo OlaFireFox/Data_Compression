@@ -191,6 +191,82 @@ function setupEventListeners() {
             }
         }
     });
+
+    // ============= Tab 切換事件 =============
+    const tabHuffman = document.getElementById('tab-huffman');
+    const tabImage = document.getElementById('tab-image');
+    if (tabHuffman && tabImage) {
+        tabHuffman.addEventListener('click', () => switchTab('huffman'));
+        tabImage.addEventListener('click', () => switchTab('image'));
+    }
+
+    // ============= 圖片拖放與選擇事件 =============
+    const imageDropZone = document.getElementById('imageDropZone');
+    const imageFileInput = document.getElementById('imageFileInput');
+    
+    if (imageDropZone && imageFileInput) {
+        imageDropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            imageDropZone.classList.add('border-blue-500', 'bg-slate-800', 'shadow-lg', 'shadow-blue-500/10');
+        });
+        
+        imageDropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            imageDropZone.classList.remove('border-blue-500', 'bg-slate-800', 'shadow-lg', 'shadow-blue-500/10');
+        });
+        
+        imageDropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            imageDropZone.classList.remove('border-blue-500', 'bg-slate-800', 'shadow-lg', 'shadow-blue-500/10');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleImageFileSelect(files[0]);
+            }
+        });
+        
+        imageDropZone.addEventListener('click', () => imageFileInput.click());
+        imageFileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleImageFileSelect(e.target.files[0]);
+            }
+        });
+    }
+
+    // 清除圖片
+    const clearImageBtn = document.getElementById('clearImageBtn');
+    if (clearImageBtn) {
+        clearImageBtn.addEventListener('click', clearImage);
+    }
+
+    // 壓縮品質拉桿
+    const imageQuality = document.getElementById('imageQuality');
+    const qualityValText = document.getElementById('qualityValText');
+    if (imageQuality && qualityValText) {
+        imageQuality.addEventListener('input', (e) => {
+            qualityValText.innerText = e.target.value;
+        });
+        imageQuality.addEventListener('change', () => {
+            handleImageCompress();
+        });
+    }
+
+    // 色彩模式切換
+    document.querySelectorAll('input[name="imageMode"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            handleImageCompress();
+        });
+    });
+
+    // 區塊選擇事件
+    window.addEventListener('blockSelected', (e) => {
+        const { row, col } = e.detail;
+        document.getElementById('detailRow').innerText = row;
+        document.getElementById('detailCol').innerText = col;
+        fetchBlockDetails(row, col);
+    });
 }
 
 // ============= 拖放處理 =============
@@ -1083,4 +1159,170 @@ function showNotification(message, type = 'info') {
     }, 3000);
 }
 
-console.log('應用已載入');
+// ============= Tab 切換 =============
+function switchTab(activeTab) {
+    const tabHuffman = document.getElementById('tab-huffman');
+    const tabImage = document.getElementById('tab-image');
+    const huffmanSection = document.getElementById('huffman-section');
+    const imageSection = document.getElementById('image-section');
+    
+    if (activeTab === 'huffman') {
+        tabHuffman.className = "px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 bg-blue-600 text-white shadow-md";
+        tabImage.className = "px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 text-slate-400 hover:text-slate-200";
+        huffmanSection.classList.remove('hidden');
+        imageSection.classList.add('hidden');
+    } else {
+        tabImage.className = "px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 bg-blue-600 text-white shadow-md";
+        tabHuffman.className = "px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 text-slate-400 hover:text-slate-200";
+        imageSection.classList.remove('hidden');
+        huffmanSection.classList.add('hidden');
+        
+        // Lazy initialize ImageVisualizer when switching to image tab
+        if (!appState.imageVisualizer) {
+            appState.imageVisualizer = new ImageVisualizer();
+        }
+    }
+}
+
+// ============= 圖片處理 =============
+function handleImageFileSelect(file) {
+    if (!file) return;
+    
+    // Verify file type
+    if (!file.type.startsWith('image/')) {
+        showNotification('只接受圖片檔案 (JPG, PNG, BMP, WEBP)', 'error');
+        return;
+    }
+    
+    // Check file size (10MB)
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+        showNotification('圖片檔案大小超過 10MB', 'error');
+        return;
+    }
+    
+    // Clear previous states
+    if (appState.imageVisualizer) {
+        appState.imageVisualizer.reset();
+    } else {
+        appState.imageVisualizer = new ImageVisualizer();
+    }
+    
+    appState.currentImageFile = file;
+    appState.compressedImageFilename = null;
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        appState.imageVisualizer.loadImage(e.target.result, () => {
+            document.getElementById('imageWorkspace').classList.remove('hidden');
+            showNotification(`已選擇圖片：${file.name}`, 'success');
+            // Trigger initial compression
+            handleImageCompress();
+        });
+    };
+    reader.readAsDataURL(file);
+}
+
+async function handleImageCompress() {
+    if (!appState.currentImageFile) return;
+    
+    const spinner = document.getElementById('compressingSpinner');
+    if (spinner) spinner.classList.remove('hidden');
+    
+    try {
+        const quality = document.getElementById('imageQuality').value;
+        const mode = document.querySelector('input[name="imageMode"]:checked').value;
+        
+        const response = await API.compressImage(appState.currentImageFile, quality, mode);
+        
+        if (response.success) {
+            appState.compressedImageFilename = response.data.filename;
+            
+            // Reconstructed image display
+            document.getElementById('reconstructedImage').src = response.data.reconstructed_image;
+            
+            // Statistics indicators
+            const stats = response.data.stats;
+            document.getElementById('imgOriginalSize').innerText = API.formatFileSize(stats.original_size);
+            document.getElementById('imgCompressedSize').innerText = API.formatFileSize(stats.compressed_size);
+            document.getElementById('imgRatio').innerText = stats.compression_ratio;
+            
+            const savings = (100 - (stats.compressed_size / stats.original_size * 100)).toFixed(1);
+            document.getElementById('imgSavingsPercent').innerText = `${savings}%`;
+            document.getElementById('imgZeroPercent').innerText = stats.zero_percentage;
+            document.getElementById('imgPsnr').innerText = stats.psnr;
+            document.getElementById('imgResolution').innerText = `${stats.processed_width} x ${stats.processed_height}`;
+            document.getElementById('imgBlockCount').innerText = stats.blocks_count;
+            
+            // Fetch detail for selected block coordinates (defaulting to the previously selected or 0,0)
+            const selRow = appState.imageVisualizer.selectedBlock.row;
+            const selCol = appState.imageVisualizer.selectedBlock.col;
+            document.getElementById('detailRow').innerText = selRow;
+            document.getElementById('detailCol').innerText = selCol;
+            
+            fetchBlockDetails(selRow, selCol);
+            showNotification('圖片壓縮完成！', 'success');
+        } else {
+            showNotification(`壓縮失敗: ${response.error}`, 'error');
+        }
+    } catch (e) {
+        showNotification(`發生錯誤: ${e.message}`, 'error');
+        console.error('Image compression error:', e);
+    } finally {
+        if (spinner) spinner.classList.add('hidden');
+    }
+}
+
+async function fetchBlockDetails(row, col) {
+    if (!appState.compressedImageFilename) return;
+    
+    try {
+        const quality = document.getElementById('imageQuality').value;
+        const mode = document.querySelector('input[name="imageMode"]:checked').value;
+        
+        const response = await API.getBlockDetail(
+            appState.compressedImageFilename,
+            quality,
+            mode,
+            row,
+            col
+        );
+        
+        if (response.success && appState.imageVisualizer) {
+            const matrices = response.data;
+            
+            // Render matrices Y channels
+            appState.imageVisualizer.renderMatrix('matrixOriginal', matrices.original_block, 'pixel');
+            appState.imageVisualizer.renderMatrix('matrixShifted', matrices.original_block.map(r => r.map(v => v - 128)), 'other');
+            appState.imageVisualizer.renderMatrix('matrixDct', matrices.dct_block, 'dct');
+            appState.imageVisualizer.renderMatrix('matrixQuantTable', matrices.quantization_table, 'other');
+            appState.imageVisualizer.renderMatrix('matrixQuantized', matrices.quantized_block, 'quantized');
+            appState.imageVisualizer.renderMatrix('matrixReconstructed', matrices.reconstructed_block, 'pixel');
+            
+            // Set Zig-zag scanning sequence
+            appState.imageVisualizer.setZigzagData(matrices.zigzag_sequence);
+            
+            document.getElementById('blockDetailPanel').classList.remove('hidden');
+        } else if (response.error) {
+            console.error('Error fetching block details:', response.error);
+        }
+    } catch (e) {
+        console.error('Fetch block detail error:', e);
+    }
+}
+
+function clearImage() {
+    appState.currentImageFile = null;
+    appState.compressedImageFilename = null;
+    
+    document.getElementById('imageFileInput').value = '';
+    document.getElementById('imageWorkspace').classList.add('hidden');
+    document.getElementById('blockDetailPanel').classList.add('hidden');
+    
+    if (appState.imageVisualizer) {
+        appState.imageVisualizer.reset();
+    }
+    showNotification('圖片已清除', 'info');
+}
+
+console.log('應用已載入 (v1.1.0 支援 JPEG/DCT 可視化)');

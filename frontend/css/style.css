@@ -251,3 +251,50 @@ button:disabled {
                 linear-gradient(135deg, #3b82f6, #8b5cf6) border-box;
     border: 1px solid transparent;
 }
+
+/* ============= JPEG/DCT 影像分析特有樣式 ============= */
+.matrix-cell {
+    aspect-ratio: 1 / 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 2px;
+    font-weight: bold;
+    user-select: none;
+    transition: all 0.15s ease;
+    font-size: 9px;
+}
+
+.matrix-cell-pos {
+    background-color: rgba(59, 130, 246, 0.25); /* 藍色 bg */
+    color: #60a5fa; /* 淺藍字 */
+    border: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+.matrix-cell-neg {
+    background-color: rgba(139, 92, 246, 0.25); /* 紫色 bg */
+    color: #c084fc; /* 淺紫字 */
+    border: 1px solid rgba(139, 92, 246, 0.4);
+}
+
+.matrix-cell-zero {
+    background-color: rgba(51, 65, 85, 0.2); /* 灰/暗 bg */
+    color: rgba(100, 116, 139, 0.4); /* 暗灰字 */
+    border: 1px solid rgba(51, 65, 85, 0.3);
+}
+
+.matrix-cell-highlight {
+    outline: 2px solid #10b981;
+    outline-offset: -1px;
+    z-index: 10;
+    transform: scale(1.1);
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.8);
+}
+
+/* Tab 按鈕樣式切換 */
+.tab-active {
+    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%) !important;
+    color: white !important;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
