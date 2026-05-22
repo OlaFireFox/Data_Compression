@@ -227,6 +227,10 @@ def test_large_text():
 
 def main():
     """主测试函数"""
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except AttributeError:
+        pass  # In case stdout doesn't support reconfigure
     print(f"""
 ╔══════════════════════════════════════════════════════════════╗
 ║    GZIP 文本存储测试                                         ║

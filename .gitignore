@@ -216,3 +216,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project specific ignores
+backend/compressed/
+backend/uploads/
+test_9mb.txt
+test_flash.txt
+*.gz
+*.bin
+frontend/test_sample*.txt

@@ -31,6 +31,10 @@ class MyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
 def start_server():
     """啟動伺服器"""
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except AttributeError:
+        pass
     os.chdir(DIRECTORY)
     
     with socketserver.TCPServer(("", PORT), MyHTTPRequestHandler) as httpd:

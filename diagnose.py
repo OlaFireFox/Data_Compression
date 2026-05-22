@@ -235,6 +235,10 @@ def test_run_frontend():
 
 def main():
     """主診斷程式"""
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except AttributeError:
+        pass
     print(f"""
 ╔══════════════════════════════════════════════════════════════╗
 ║         Huffman 壓縮可視化 - 診斷工具                        ║

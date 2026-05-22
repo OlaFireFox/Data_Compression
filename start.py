@@ -168,6 +168,10 @@ def signal_handler(signum, frame):
 
 def main():
     """主函數"""
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except AttributeError:
+        pass
     print_header()
     
     # 設置信號處理

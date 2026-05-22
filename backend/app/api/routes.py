@@ -100,10 +100,13 @@ async def upload_and_compress(file: UploadFile = File(...)):
         with open(metadata_path, "w", encoding="utf-8") as f:
             json.dump(metadata_json, f, ensure_ascii=False, indent=2)
         
+        # 安全截斷過長的二進位字串，避免瀏覽器解析與網路傳輸卡死
+        truncated_encoded = encoded_text if len(encoded_text) <= 10000 else (encoded_text[:10000] + "...(過長已截斷)")
+        
         return CompressionResponse(
             success=True,
             message="文件壓縮成功",
-            encoded_text=encoded_text,
+            encoded_text=truncated_encoded,
             original_size=metadata["original_size"],
             encoded_size=metadata["encoded_size"],
             compression_ratio=save_result.get('compression_ratio', metadata["compression_ratio"]),

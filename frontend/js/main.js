@@ -51,12 +51,16 @@ const elements = {
     rightNodeInfo: document.getElementById('rightNodeInfo'),
     prevStepBtn: document.getElementById('prevStepBtn'),
     playBtn: document.getElementById('playBtn'),
+    fastCompleteBtn: document.getElementById('fastCompleteBtn'),
     nextStepBtn: document.getElementById('nextStepBtn'),
     animationSpeed: document.getElementById('animationSpeed'),
     speedValue: document.getElementById('speedValue'),
     stepsList: document.getElementById('stepsList'),
     apiStatus: document.getElementById('api-status'),
-    notificationContainer: document.getElementById('notificationContainer')
+    notificationContainer: document.getElementById('notificationContainer'),
+    zoomInBtn: document.getElementById('zoomInBtn'),
+    zoomOutBtn: document.getElementById('zoomOutBtn'),
+    resetViewBtn: document.getElementById('resetViewBtn')
 };
 
 // ============= 計算函數 =============
@@ -135,7 +139,27 @@ function setupEventListeners() {
     // 動畫控制
     elements.prevStepBtn.addEventListener('click', () => previousStep());
     elements.playBtn.addEventListener('click', () => toggleAnimation());
+    if (elements.fastCompleteBtn) {
+        elements.fastCompleteBtn.addEventListener('click', () => runFastComplete());
+    }
     elements.nextStepBtn.addEventListener('click', () => nextStep());
+
+    // 縮放與重置視角按鈕監聽
+    elements.zoomInBtn.addEventListener('click', () => {
+        if (appState.treeVisualizer) {
+            appState.treeVisualizer.zoom(1.2);
+        }
+    });
+    elements.zoomOutBtn.addEventListener('click', () => {
+        if (appState.treeVisualizer) {
+            appState.treeVisualizer.zoom(1 / 1.2);
+        }
+    });
+    elements.resetViewBtn.addEventListener('click', () => {
+        if (appState.treeVisualizer) {
+            appState.treeVisualizer.resetView();
+        }
+    });
 
     // ⭐ 播放速度即時調節
     elements.animationSpeed.addEventListener('input', (e) => {
@@ -451,7 +475,6 @@ async function downloadBinFile() {
     }
 }
 
-// ============= 動畫模態框 =============
 function showAnimationModal() {
     if (!appState.compressionResult) {
         showNotification('沒有壓縮數據', 'error');
@@ -488,35 +511,17 @@ function showAnimationModal() {
             );
             console.log(`✓ 樹數據已載入 (${appState.compressionResult.build_steps.length} 步驟)`);
 
-            // 初始化傳輸動畫器
-            if (!appState.transmissionAnimator) {
-                const svgElement = document.getElementById('transmissionSVG');
-                if (!svgElement) {
-                    console.warn('⚠️ Transmission SVG element not found');
-                } else {
-                    console.log('✓ 創建傳輸動畫器');
-                    appState.transmissionAnimator = new TransmissionAnimator();
-                }
-            }
-            
-            if (appState.transmissionAnimator && appState.originalText) {
-                console.log(`✓ 初始化傳輸動畫器 (文本長度: ${appState.originalText.length})`);
-                appState.transmissionAnimator.initialize(
-                    appState.originalText,
-                    appState.compressionResult.code_table,
-                    appState.compressionResult.frequencies
-                );
-            }
-
             // 更新步驟信息
-            elements.totalSteps.textContent = appState.compressionResult.build_steps.length;
+            const textLength = appState.originalText.length;
+            const maxSteps = Math.min(100, textLength);
+            elements.totalSteps.textContent = maxSteps;
             updateAnimationUI();
 
             // 生成步驟列表
             generateStepsList();
 
             // 顯示第一步
-            if (appState.compressionResult.build_steps.length > 0) {
+            if (maxSteps > 0) {
                 showStep(0);
             }
 
@@ -535,33 +540,262 @@ function closeAnimationModal() {
     stopAnimation();
 }
 
+// ============= 傳輸速度對比 UI 更新 =============
+function updateSpeedComparisonUI() {
+    if (!appState.compressionResult || !appState.originalText) return;
+    
+    const textLength = appState.originalText.length;
+    const totalOriginalBits = textLength * 8;
+    const totalHuffmanBits = appState.compressionResult.encoded_size;
+    
+    const originalBar = document.getElementById('originalProgressBar');
+    const huffmanBar = document.getElementById('huffmanProgressBar');
+    
+    if (!originalBar || !huffmanBar) return;
+    
+    const originalProgressVal = parseFloat(originalBar.getAttribute('width')) || 0;
+    const huffmanProgressVal = parseFloat(huffmanBar.getAttribute('width')) || 0;
+    
+    const barContainerWidth = 460;
+    const ratioOrig = Math.min(1, originalProgressVal / barContainerWidth);
+    const ratioHuff = Math.min(1, huffmanProgressVal / barContainerWidth);
+    
+    const idxOrig = Math.min(textLength - 1, Math.floor(ratioOrig * textLength));
+    const idxHuff = Math.min(textLength - 1, Math.floor(ratioHuff * textLength));
+    
+    const charOrig = appState.originalText[idxOrig];
+    const charHuff = appState.originalText[idxHuff];
+    
+    const bitsOrig = Math.min(totalOriginalBits, Math.floor(ratioOrig * totalOriginalBits));
+    const bitsHuff = Math.min(totalHuffmanBits, Math.floor(ratioHuff * totalHuffmanBits));
+    
+    // 狀態文字
+    let status = '傳輸中...';
+    if (ratioOrig >= 1 && ratioHuff >= 1) {
+        status = '傳輸完成';
+    } else if (ratioHuff >= 1) {
+        status = 'Huffman 完成 / 原始傳輸中';
+    }
+    
+    const escapeChar = (c) => {
+        if (c === ' ') return '⎵ (空格)';
+        if (c === '\n') return '↵ (換行)';
+        if (c === '\t') return '⇥ (製表)';
+        return c;
+    };
+    
+    const charOrigText = ratioOrig >= 1 ? '完成' : `第 ${idxOrig + 1} 字元 (${escapeChar(charOrig)})`;
+    const charHuffText = ratioHuff >= 1 ? '完成' : `第 ${idxHuff + 1} 字元 (${escapeChar(charHuff)})`;
+    
+    const statusLine1 = document.getElementById('statusLine1');
+    const statusLine2 = document.getElementById('statusLine2');
+    const statusLine3 = document.getElementById('statusLine3');
+    const statusLine4 = document.getElementById('statusLine4');
+    const statusLine5 = document.getElementById('statusLine5');
+    
+    if (statusLine1) statusLine1.textContent = `狀態: ${status}`;
+    if (statusLine2) statusLine2.textContent = `原始進度: ${charOrigText}`;
+    if (statusLine3) statusLine3.textContent = `Huffman 進度: ${charHuffText}`;
+    if (statusLine4) statusLine4.textContent = `傳輸位元: 原始: ${bitsOrig} / Huffman: ${bitsHuff} bits`;
+    
+    // 更新 SVG 進度條 % 數文字
+    const originalText = document.getElementById('originalProgressText');
+    const huffmanText = document.getElementById('huffmanProgressText');
+    if (originalText) originalText.textContent = `${Math.round(ratioOrig * 100)}%`;
+    if (huffmanText) huffmanText.textContent = `${Math.round(ratioHuff * 100)}%`;
+    
+    const baseDurationPerChar = 0.8;
+    let originalDuration = textLength * baseDurationPerChar;
+    originalDuration = Math.max(4, Math.min(originalDuration, 15));
+    const durationHuffman = originalDuration * (totalHuffmanBits / totalOriginalBits);
+    
+    if (statusLine5) {
+        statusLine5.textContent = `估計時長: 原始: ${originalDuration.toFixed(1)} 秒 / Huffman: ${durationHuffman.toFixed(1)} 秒`;
+    }
+}
+
+// ============= 樹導覽自動播放邏輯 =============
+function startTreeAutoplay() {
+    if (appState.treeTimer) {
+        clearTimeout(appState.treeTimer);
+    }
+    
+    const textLength = appState.originalText.length;
+    const maxSteps = Math.min(100, textLength);
+    
+    const runTreeStep = () => {
+        if (!appState.animationPlaying) return;
+        
+        if (appState.currentStepIndex >= maxSteps - 1) {
+            checkAnimationEnd();
+            return;
+        }
+        
+        appState.currentStepIndex++;
+        showStep(appState.currentStepIndex);
+        
+        // 遞迴調用，使用當前速度倍率計算間隔時間
+        appState.treeTimer = setTimeout(runTreeStep, 800 / appState.animationSpeed);
+    };
+    
+    appState.treeTimer = setTimeout(runTreeStep, 800 / appState.animationSpeed);
+}
+
+// ============= 動畫結束檢查 =============
+function checkAnimationEnd() {
+    const textLength = appState.originalText.length;
+    const maxSteps = Math.min(100, textLength);
+    
+    const timelineDone = !appState.currentAnimationTimeline || appState.currentAnimationTimeline.progress() >= 1;
+    const treeDone = appState.currentStepIndex >= maxSteps - 1;
+    
+    if (timelineDone && treeDone) {
+        console.log('🏁 動畫播放全部完成');
+        appState.animationPlaying = false;
+        elements.playBtn.textContent = '▶️ 播放';
+        elements.playBtn.disabled = false;
+        elements.prevStepBtn.disabled = false;
+        elements.nextStepBtn.disabled = false;
+        
+        if (appState.treeTimer) {
+            clearTimeout(appState.treeTimer);
+            appState.treeTimer = null;
+        }
+    }
+}
+
+// ============= 一鍵跳過動畫 =============
+function runFastComplete() {
+    if (!appState.treeVisualizer || !appState.compressionResult) {
+        showNotification('動畫數據未就緒', 'error');
+        return;
+    }
+
+    console.log('⚡ 執行一鍵跳過動畫至 Huffman 完成點');
+    
+    const textLength = appState.originalText.length;
+    const totalOriginalBits = textLength * 8;
+    let totalHuffmanBits = appState.compressionResult.encoded_size;
+    
+    const originalBar = document.getElementById('originalProgressBar');
+    const huffmanBar = document.getElementById('huffmanProgressBar');
+    const originalText = document.getElementById('originalProgressText');
+    const huffmanText = document.getElementById('huffmanProgressText');
+    const barContainerWidth = 460;
+    
+    const baseDurationPerChar = 0.8;
+    let originalDuration = textLength * baseDurationPerChar;
+    originalDuration = Math.max(4, Math.min(originalDuration, 15));
+    
+    const durationOriginal = originalDuration;
+    const durationHuffman = durationOriginal * (totalHuffmanBits / totalOriginalBits);
+
+    // 如果尚未初始化時間線，先建立時間線
+    if (!appState.currentAnimationTimeline) {
+        if (originalBar && huffmanBar) {
+            gsap.set(originalBar, { attr: { width: 0 } });
+            gsap.set(huffmanBar, { attr: { width: 0 } });
+            if (originalText) originalText.textContent = '0%';
+            if (huffmanText) huffmanText.textContent = '0%';
+        }
+        
+        const transmissionTimeline = gsap.timeline({
+            onUpdate: () => {
+                updateSpeedComparisonUI();
+            },
+            onComplete: () => {
+                updateSpeedComparisonUI();
+                checkAnimationEnd();
+            }
+        });
+        
+        appState.currentAnimationTimeline = transmissionTimeline;
+        
+        transmissionTimeline.to(originalBar, {
+            attr: { width: barContainerWidth },
+            duration: durationOriginal,
+            ease: 'none'
+        }, 0);
+        
+        transmissionTimeline.to(huffmanBar, {
+            attr: { width: barContainerWidth },
+            duration: durationHuffman,
+            ease: 'none'
+        }, 0);
+    }
+    
+    // 暫停時間線與樹自動播放
+    appState.animationPlaying = false;
+    appState.currentAnimationTimeline.pause();
+    
+    if (appState.treeTimer) {
+        clearTimeout(appState.treeTimer);
+        appState.treeTimer = null;
+    }
+    
+    // 快進至 Huffman 完成時刻
+    appState.currentAnimationTimeline.seek(durationHuffman);
+    
+    // 更新速度對比 UI
+    updateSpeedComparisonUI();
+    
+    // 繪製完整的樹，清除所有路徑高亮
+    if (appState.treeVisualizer) {
+        appState.treeVisualizer.clearAllHighlights();
+        appState.treeVisualizer.drawTree();
+    }
+    
+    // 更新播放按鈕與狀態
+    elements.playBtn.textContent = '▶️ 繼續';
+    elements.playBtn.disabled = false;
+    elements.prevStepBtn.disabled = false;
+    elements.nextStepBtn.disabled = false;
+    
+    showNotification('已跳過動畫至 Huffman 完成時刻', 'success');
+}
+
 // ============= 動畫控制 =============
 function showStep(stepIndex) {
-    if (!appState.treeVisualizer || !appState.compressionResult) return;
+    if (!appState.treeVisualizer || !appState.originalText) return;
 
-    if (stepIndex < 0 || stepIndex >= appState.compressionResult.build_steps.length) {
+    const textLength = appState.originalText.length;
+    const maxSteps = Math.min(100, textLength);
+
+    if (stepIndex < 0 || stepIndex >= maxSteps) {
         return;
     }
 
     appState.currentStepIndex = stepIndex;
-    appState.treeVisualizer.showStep(stepIndex);
 
-    const step = appState.compressionResult.build_steps[stepIndex];
-    
-    // 更新步驟信息
+    const char = appState.originalText[stepIndex];
+    const code = appState.compressionResult.code_table[char] || '-';
+    const freq = appState.compressionResult.frequencies[char] || 0;
+
+    // 更新步驟資訊與控制面板上的字元、編碼、頻率
     elements.currentStep.textContent = stepIndex + 1;
     
-    const leftChar = step.left_node.char || (step.left_node.is_leaf ? '?' : 'Σ');
-    const rightChar = step.right_node.char || (step.right_node.is_leaf ? '?' : 'Σ');
+    const escapeChar = (c) => {
+        if (c === ' ') return '⎵ (空格)';
+        if (c === '\n') return '↵ (換行)';
+        if (c === '\t') return '⇥ (製表)';
+        return c;
+    };
     
-    elements.leftNodeInfo.textContent = `${leftChar} (${step.left_node.freq})`;
-    elements.rightNodeInfo.textContent = `${rightChar} (${step.right_node.freq})`;
+    elements.leftNodeInfo.textContent = `'${escapeChar(char)}' (${freq} 次)`;
+    elements.rightNodeInfo.textContent = code;
+
+    // 高亮樹路徑 (使用 smartPathAnimation)
+    const currentPathObj = appState.treeVisualizer.findPathToCharacter(char);
+    const currentPath = currentPathObj ? currentPathObj.path : [];
+    appState.treeVisualizer.smartPathAnimation(char, appState.lastCharPath, appState.animationSpeed);
+    appState.lastCharPath = currentPath;
 
     // 高亮對應的步驟列表項
     document.querySelectorAll('#stepsList .step-item').forEach((item, idx) => {
         if (idx === stepIndex) {
             item.classList.add('bg-blue-600', 'border-blue-400');
             item.classList.remove('bg-slate-700', 'border-slate-600');
+            item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         } else {
             item.classList.remove('bg-blue-600', 'border-blue-400');
             item.classList.add('bg-slate-700', 'border-slate-600');
@@ -578,7 +812,8 @@ function previousStep() {
 }
 
 function nextStep() {
-    const maxSteps = appState.compressionResult.build_steps.length;
+    const textLength = appState.originalText.length;
+    const maxSteps = Math.min(100, textLength);
     if (appState.currentStepIndex < maxSteps - 1) {
         showStep(appState.currentStepIndex + 1);
     }
@@ -587,16 +822,11 @@ function nextStep() {
 async function toggleAnimation() {
     console.log('\n🎮 toggleAnimation 被觸發');
     console.log(`   當前狀態: ${appState.animationPlaying ? '播放中' : '已停止'}`);
-    console.log(`   樹可視化器: ${appState.treeVisualizer ? '✓' : '✗'}`);
-    console.log(`   傳輸動畫器: ${appState.transmissionAnimator ? '✓' : '✗'}`);
-    console.log(`   原始文本: ${appState.originalText ? `"${appState.originalText}"` : '✗'}`);
     
     if (appState.animationPlaying) {
-        // 暫停動畫
         console.log('⏸️ 暫停動畫');
         pauseAnimation();
     } else {
-        // 開始或繼續動畫
         console.log('▶️ 開始動畫');
         await playAnimation();
     }
@@ -609,387 +839,203 @@ async function playAnimation() {
         return;
     }
 
-    // 防止重複播放
-    if (appState.animationPlaying) {
-        console.warn('⚠️ Animation already playing');
-        return;
-    }
-
-    console.log('═══════════════════════════════════════════════════');
-    console.log('▶️ 開始播放動畫 - 樹與傳輸同步');
-    console.log('═══════════════════════════════════════════════════');
-    
     appState.animationPlaying = true;
+    appState.animationStopped = false;
     elements.playBtn.textContent = '⏸️ 暫停';
-    elements.playBtn.disabled = false;
     elements.prevStepBtn.disabled = true;
     elements.nextStepBtn.disabled = true;
     elements.animationSpeed.disabled = false;
     appState.animationSpeed = parseFloat(elements.animationSpeed.value) || 1;
 
     const speed = appState.animationSpeed;
-    const buildSteps = appState.compressionResult.build_steps;
-    const uniqueChars = Object.keys(appState.compressionResult.code_table);
-    
-    // 計算時長
-    const baseBitTime = 0.1; // 每個 bit 的時間（秒）
-    const originalTotalTimePerChar = 8 * baseBitTime; // 0.8 秒
+    const textLength = appState.originalText.length;
+    const maxSteps = Math.min(100, textLength);
 
-    console.log(`📊 動畫配置:`);
-    console.log(`   速度: ${speed}x`);
-    console.log(`   樹構建步驟: ${buildSteps.length}`);
-    console.log(`   唯一字符: ${uniqueChars.length}`);
-    console.log(`   原始文本: "${appState.originalText}" (${appState.originalText.length} 字符)`);
-    console.log(`   原始 8-bit 時長: ${originalTotalTimePerChar.toFixed(2)}s`);
-    console.log(`   傳輸動畫器: ${appState.transmissionAnimator ? '✓ 已初始化' : '✗ 未初始化'}`);
-    console.log('───────────────────────────────────────────────────');
-
-    try {
-        // 重置狀態
-        appState.currentStepIndex = 0;
-
-        // 重置進度條 ⭐ 新增
-        const originalBar = document.getElementById('originalProgressBar');
-        const huffmanBar = document.getElementById('huffmanProgressBar');
-        const originalText = document.getElementById('originalProgressText');
-        const huffmanText = document.getElementById('huffmanProgressText');
-        
-        if (originalBar && huffmanBar) {
-            gsap.set(originalBar, { attr: { width: 0 } });
-            gsap.set(huffmanBar, { attr: { width: 0 } });
-            if (originalText) originalText.textContent = '0%';
-            if (huffmanText) huffmanText.textContent = '0%';
-            console.log('✓ 進度條已重置');
-        }
-
-        // 重置傳輸動畫器
-        if (appState.transmissionAnimator) {
-            appState.transmissionAnimator.reset();
-            console.log('✓ 傳輸動畫器已重置');
-        }
-
-        // 重置樹的狀態
-        if (appState.treeVisualizer) {
-            appState.treeVisualizer.drawTree();
-            console.log('✓ 樹已重置');
-        }
-
-        // ⭐ 重置路徑追蹤狀態
-        appState.lastCharPath = null;
-        console.log('✓ 路徑追蹤已重置');
-
-        console.log('\n═══════════════════════════════════════════════════');
-        console.log('▶️ 開始播放動畫 - 智能路徑對比模式');
-        console.log('═══════════════════════════════════════════════════\n');
-
-        // ⭐ 主播放循环 - 路徑對比邏輯
-        const textLength = appState.originalText.length;
-        
-        for (let charIdx = 0; charIdx < textLength; charIdx++) {
-            if (!appState.animationPlaying) {
-                console.log(`\n⏹️ 動畫被使用者中止 (字符 ${charIdx}/${textLength})`);
-                break;
-            }
-
-            const char = appState.originalText[charIdx];
-            console.log(`\n📍 字符 ${charIdx + 1}/${textLength}: '${char === ' ' ? '⎵' : char}'`);
-
-            // ⭐ 同步更新：字符 → 對應的樹構建步驟
-            let treeStepIdx = Math.min(charIdx, buildSteps.length - 1);
-            
-            if (charIdx < uniqueChars.length && treeStepIdx >= 0) {
-                console.log(`   🌳 顯示樹構建步驟 ${treeStepIdx + 1}/${buildSteps.length}`);
-                appState.treeVisualizer.showStep(treeStepIdx);
-                appState.currentStepIndex = treeStepIdx;
-                updateAnimationUI();
-            }
-            
-            // ⭐ 樹路徑動畫和進度條動畫並行執行（不互相阻塞）
-            console.log(`   🧠 執行路徑對比邏輯... 🎬 啟動進度條傳輸...`);
-            
-            // 並行啟動：路徑動畫和進度條動畫
-            const pathAnimationPromise = appState.treeVisualizer.smartPathAnimation(
-                char, 
-                appState.lastCharPath, 
-                speed
-            );
-            
-            const transmissionAnimationPromise = playTransmissionCharacterForStep(charIdx, speed);
-            
-            // 等待兩個動畫都完成
-            const [currentCharPath] = await Promise.all([
-                pathAnimationPromise,
-                transmissionAnimationPromise
-            ]);
-            
-            // ⭐ 更新路徑追蹤狀態
-            appState.lastCharPath = currentCharPath;
-        }
-
-        console.log('\n═══════════════════════════════════════════════════');
-        console.log('✅ 所有字符傳輸完成 - 動畫播放結束');
-        console.log('═══════════════════════════════════════════════════\n');
-        stopAnimation();
-
-    } catch (error) {
-        console.error('❌ 動畫播放發生錯誤:');
-        console.error(error);
-        console.error(error.stack);
-        showNotification('動畫播放失敗：' + error.message, 'error');
-        stopAnimation();
+    // 支援從暫停狀態繼續播放
+    if (appState.currentAnimationTimeline) {
+        console.log('▶️ 繼續播放動畫');
+        appState.currentAnimationTimeline.timeScale(speed);
+        appState.currentAnimationTimeline.play();
+        startTreeAutoplay();
+        return;
     }
-}
 
-/**
- * 根據字符索引播放傳輸動畫 - ⭐ 進度條竞速模式
- * 使用 GSAP 控制進度條寬度百分比
- */
-async function playTransmissionCharacterForStep(charIdx, speed = 1) {
-    return new Promise((resolve) => {
-        if (!appState.transmissionAnimator) {
-            console.warn(`⚠️ 傳輸動畫器不可用，跳過字符 ${charIdx}`);
-            setTimeout(resolve, 100);
-            return;
+    console.log('═══════════════════════════════════════════════════');
+    console.log('▶️ 開始播放動畫 - 競速傳輸模式');
+    console.log('═══════════════════════════════════════════════════');
+    
+    // 重置進度條與文字
+    const originalBar = document.getElementById('originalProgressBar');
+    const huffmanBar = document.getElementById('huffmanProgressBar');
+    const originalText = document.getElementById('originalProgressText');
+    const huffmanText = document.getElementById('huffmanProgressText');
+    const barContainerWidth = 460;
+    
+    if (originalBar && huffmanBar) {
+        gsap.set(originalBar, { attr: { width: 0 } });
+        gsap.set(huffmanBar, { attr: { width: 0 } });
+        if (originalText) originalText.textContent = '0%';
+        if (huffmanText) huffmanText.textContent = '0%';
+    }
+
+    // 重置樹高亮與步驟索引
+    appState.currentStepIndex = 0;
+    appState.lastCharPath = null;
+    showStep(0);
+
+    // 計算傳輸速度比例
+    const totalOriginalBits = textLength * 8;
+    let totalHuffmanBits = appState.compressionResult.encoded_size;
+
+    // 設定總時長
+    const baseDurationPerChar = 0.8;
+    let originalDuration = textLength * baseDurationPerChar;
+    originalDuration = Math.max(4, Math.min(originalDuration, 15));
+
+    const durationOriginal = originalDuration;
+    const durationHuffman = durationOriginal * (totalHuffmanBits / totalOriginalBits);
+
+    // 建立 GSAP 進度條競速動畫時間線
+    const transmissionTimeline = gsap.timeline({
+        onUpdate: () => {
+            updateSpeedComparisonUI();
+        },
+        onComplete: () => {
+            updateSpeedComparisonUI();
+            checkAnimationEnd();
         }
-
-        if (!appState.originalText || charIdx >= appState.originalText.length) {
-            console.warn(`⚠️ 字符索引超出範圍: ${charIdx}/${appState.originalText ? appState.originalText.length : '?'}`);
-            setTimeout(resolve, 100);
-            return;
-        }
-
-        const char = appState.originalText[charIdx];
-        const code = appState.compressionResult.code_table[char];
-        const freq = appState.compressionResult.frequencies[char];
-
-        if (!code) {
-            console.warn(`⚠️ 字符 '${char}' 無編碼對應`);
-            setTimeout(resolve, 100);
-            return;
-        }
-
-        // ⭐ 傳輸速度計算
-        const baseBitTime = 0.1; // 每個 bit 的時間（秒）
-        const originalTotalTime = 8 * baseBitTime; // 0.8 秒（固定，代表 8-bit 傳輸）
-        const huffmanTotalTime = code.length * baseBitTime; // 動態時長
-        const savedTime = originalTotalTime - huffmanTotalTime;
-        const savedPercent = (savedTime / originalTotalTime * 100).toFixed(1);
-
-        // ⭐ 位元傳輸進度計算 - 展現速度對比的關鍵
-        // 原始 100% = 完成所有原始位元 (312 bits)
-        // Huffman 100% = 完成所有 Huffman 位元 (194 bits)
-        // 這樣 Huffman 會因位元更少而更早到達 100%
-        const totalChars = appState.originalText.length;
-        const totalOriginalBits = totalChars * 8; // 原始：312 bits
-        
-        // 計算總 Huffman 位元數（用於百分比計算）
-        let totalHuffmanBits = 0;
-        for (let i = 0; i < totalChars; i++) {
-            const c = appState.originalText[i];
-            totalHuffmanBits += appState.compressionResult.code_table[c].length;
-        }
-        
-        // 計算從開始到當前字符的位元累計
-        let originalBitsBeforeChar = charIdx * 8;
-        let originalBitsAfterChar = (charIdx + 1) * 8;
-        
-        // 計算 Huffman 編碼的位元累計
-        let huffmanBitsBeforeChar = 0;
-        let huffmanBitsAfterChar = 0;
-        for (let i = 0; i <= charIdx; i++) {
-            const c = appState.originalText[i];
-            huffmanBitsAfterChar += appState.compressionResult.code_table[c].length;
-            if (i < charIdx) {
-                huffmanBitsBeforeChar += appState.compressionResult.code_table[c].length;
-            }
-        }
-        
-        // 計算百分比 - 兩條進度條各有各的 100% 目標
-        const startProgressOriginal = (originalBitsBeforeChar / totalOriginalBits) * 100;
-        const endProgressOriginal = (originalBitsAfterChar / totalOriginalBits) * 100;
-        
-        const startProgressHuffman = (huffmanBitsBeforeChar / totalHuffmanBits) * 100;
-        const endProgressHuffman = (huffmanBitsAfterChar / totalHuffmanBits) * 100;
-
-        console.log(`   📍 字符: '${char === ' ' ? '⎵' : char}' (${charIdx + 1}/${totalChars}) | 編碼: ${code} (${code.length} bits) | 頻率: ${freq}`);
-        console.log(`   📊 位元進度 - 原始: ${startProgressOriginal.toFixed(1)}% → ${endProgressOriginal.toFixed(1)}% | Huffman: ${startProgressHuffman.toFixed(1)}% → ${endProgressHuffman.toFixed(1)}%`);
-        console.log(`   📏 位元: 原始 +${originalBitsAfterChar - originalBitsBeforeChar} bits | Huffman +${code.length} bits`);
-        console.log(`   ⏱️  時長: 原始 ${originalTotalTime.toFixed(2)}s vs Huffman ${huffmanTotalTime.toFixed(2)}s | 節省 ${savedPercent}%`);
-
-        // 更新狀態信息面板
-        appState.transmissionAnimator.updateStatus(
-            `字符 ${charIdx + 1}/${totalChars}: '${char === ' ' ? '⎵ (空格)' : char}'`,
-            `編碼: ${code} (${code.length} bits)`,
-            `頻率: ${freq} 次`,
-            `時長: 原始 ${originalTotalTime.toFixed(2)}s vs Huffman ${huffmanTotalTime.toFixed(2)}s`,
-            `進度: ${startProgressOriginal.toFixed(1)}% → ${endProgressOriginal.toFixed(1)}% | 節省 ${savedPercent}%`
-        );
-
-        // 檢查元素是否存在
-        const originalBar = document.getElementById('originalProgressBar');
-        const huffmanBar = document.getElementById('huffmanProgressBar');
-        const originalText = document.getElementById('originalProgressText');
-        const huffmanText = document.getElementById('huffmanProgressText');
-
-        if (!originalBar || !huffmanBar) {
-            console.error('❌ 進度條元素不存在!');
-            resolve();
-            return;
-        }
-
-        console.log(`   🎬 開始進度條竞速... (原始: ${originalTotalTime.toFixed(2)}s, Huffman: ${huffmanTotalTime.toFixed(2)}s)`);
-
-        // ⭐ 建立並行傳輸動畫時間線
-        const transmissionTimeline = gsap.timeline({
-            onComplete: () => {
-                console.log(`   ✅ 字符 '${char}' 傳輸完成`);
-                appState.currentAnimationTimeline = null;
-                resolve();
-            }
-        });
-
-        // ⭐ 保存時間線到全局狀態
-        appState.currentAnimationTimeline = transmissionTimeline;
-
-        // 應用速度倍率
-        if (speed !== 1) {
-            transmissionTimeline.timeScale(speed);
-            console.log(`   🎚️ 應用速度倍率: ${speed}x`);
-        }
-
-        // ⭐ SVG 容器的寬度（viewBox 寬度 = 500）
-        // 進度條容器從 x=20 到 x=480，寬度 = 460
-        const barContainerWidth = 460;
-
-        // ⭐ 原始 8-bit 傳輸進度條：寬度基於百分比計算（修復寬度Bug）
-        const originalStartWidth = (startProgressOriginal / 100) * barContainerWidth;
-        const originalEndWidth = (endProgressOriginal / 100) * barContainerWidth;
-        
-        // 用一個代理對象來跟蹤進度百分比（用於文字更新）
-        const originalProgress = { value: startProgressOriginal };
-        
-        transmissionTimeline.fromTo(
-            originalBar,
-            { attr: { width: originalStartWidth } },
-            {
-                attr: { width: originalEndWidth },
-                duration: originalTotalTime / speed,
-                ease: 'none',  // 線性，無緩動
-                immediateRender: true
-            },
-            0
-        );
-
-        // ⭐ 更新原始進度文字 - 在動畫過程中實時更新
-        transmissionTimeline.fromTo(
-            originalProgress,
-            { value: startProgressOriginal },
-            {
-                value: endProgressOriginal,
-                duration: originalTotalTime / speed,
-                ease: 'none',
-                onUpdate: () => {
-                    if (originalText) {
-                        originalText.textContent = Math.round(originalProgress.value) + '%';
-                    }
-                }
-            },
-            0,
-            '<'
-        );
-
-        // ⭐ Huffman 壓縮傳輸進度條：寬度基於位元比例計算
-        const huffmanStartWidth = (startProgressHuffman / 100) * barContainerWidth;
-        const huffmanEndWidth = (endProgressHuffman / 100) * barContainerWidth;
-
-        // 用一個代理對象來跟蹤進度百分比（用於文字更新）
-        const huffmanProgress = { value: startProgressHuffman };
-
-        transmissionTimeline.fromTo(
-            huffmanBar,
-            { attr: { width: huffmanStartWidth } },
-            {
-                attr: { width: huffmanEndWidth },
-                duration: huffmanTotalTime / speed,
-                ease: 'none',  // 線性，無緩動
-                immediateRender: true
-            },
-            0  // 同時開始
-        );
-
-        // ⭐ 更新 Huffman 進度文字 - 在動畫過程中實時更新
-        transmissionTimeline.fromTo(
-            huffmanProgress,
-            { value: startProgressHuffman },
-            {
-                value: endProgressHuffman,
-                duration: huffmanTotalTime / speed,
-                ease: 'none',
-                onUpdate: () => {
-                    if (huffmanText) {
-                        huffmanText.textContent = Math.round(huffmanProgress.value) + '%';
-                    }
-                }
-            },
-            0,
-            '<'
-        );
-
     });
+
+    appState.currentAnimationTimeline = transmissionTimeline;
+    transmissionTimeline.timeScale(speed);
+
+    // 原始進度動畫
+    transmissionTimeline.to(originalBar, {
+        attr: { width: barContainerWidth },
+        duration: durationOriginal,
+        ease: 'none'
+    }, 0);
+
+    // Huffman 進度動畫
+    transmissionTimeline.to(huffmanBar, {
+        attr: { width: barContainerWidth },
+        duration: durationHuffman,
+        ease: 'none'
+    }, 0);
+
+    // 啟動獨立的樹導覽自動播放
+    startTreeAutoplay();
 }
 
 function pauseAnimation() {
     console.log('⏸️ 暫停動畫');
     appState.animationPlaying = false;
-    elements.playBtn.textContent = '▶️ 重新開始';
+    elements.playBtn.textContent = '▶️ 繼續';
     elements.playBtn.disabled = false;
 
     // 暫停當前時間線
     if (appState.currentAnimationTimeline) {
         appState.currentAnimationTimeline.pause();
     }
+    
+    // 停止樹導覽計時器
+    if (appState.treeTimer) {
+        clearTimeout(appState.treeTimer);
+        appState.treeTimer = null;
+    }
 }
 
 function stopAnimation() {
     console.log('🛑 停止動畫');
     appState.animationPlaying = false;
-    appState.currentAnimationTimeline = null;  // ⭐ 清除時間線引用
+    appState.animationStopped = true;
     elements.playBtn.textContent = '▶️ 播放';
     elements.playBtn.disabled = false;
     elements.prevStepBtn.disabled = false;
     elements.nextStepBtn.disabled = false;
     elements.animationSpeed.disabled = false;
 
-    // 停止所有傳輸動畫
-    if (appState.transmissionAnimator) {
-        appState.transmissionAnimator.stop();
+    if (appState.currentAnimationTimeline) {
+        appState.currentAnimationTimeline.kill();
+        appState.currentAnimationTimeline = null;
     }
+    
+    // 停止樹導覽計時器
+    if (appState.treeTimer) {
+        clearTimeout(appState.treeTimer);
+        appState.treeTimer = null;
+    }
+    
+    // 重置進度條與文字
+    const originalBar = document.getElementById('originalProgressBar');
+    const huffmanBar = document.getElementById('huffmanProgressBar');
+    const originalText = document.getElementById('originalProgressText');
+    const huffmanText = document.getElementById('huffmanProgressText');
+    if (originalBar && huffmanBar) {
+        gsap.set(originalBar, { attr: { width: 0 } });
+        gsap.set(huffmanBar, { attr: { width: 0 } });
+        if (originalText) originalText.textContent = '0%';
+        if (huffmanText) huffmanText.textContent = '0%';
+    }
+    
+    // 重置樹高亮
+    if (appState.treeVisualizer) {
+        appState.treeVisualizer.clearAllHighlights();
+        appState.treeVisualizer.drawTree();
+    }
+    
+    appState.currentStepIndex = 0;
+    appState.lastCharPath = null;
+    showStep(0);
+    
+    // 重置狀態文字
+    updateSpeedComparisonUI();
 }
 
 function updateAnimationUI() {
+    const textLength = appState.originalText ? appState.originalText.length : 0;
+    const maxSteps = Math.min(100, textLength);
     elements.prevStepBtn.disabled = appState.currentStepIndex === 0;
-    elements.nextStepBtn.disabled = appState.currentStepIndex === appState.compressionResult.build_steps.length - 1;
+    elements.nextStepBtn.disabled = appState.currentStepIndex === maxSteps - 1;
 }
 
 function generateStepsList() {
     const stepsList = elements.stepsList;
     stepsList.innerHTML = '';
-
-    appState.compressionResult.build_steps.forEach((step, idx) => {
+    
+    if (!appState.originalText) return;
+    
+    const textLength = appState.originalText.length;
+    const maxSteps = Math.min(100, textLength);
+    
+    for (let idx = 0; idx < maxSteps; idx++) {
+        const char = appState.originalText[idx];
+        const code = appState.compressionResult.code_table[char] || '-';
+        const freq = appState.compressionResult.frequencies[char] || 0;
+        
         const item = document.createElement('div');
         item.className = 'step-item bg-slate-700 border border-slate-600 rounded p-3 cursor-pointer transition-all hover:border-blue-500 text-xs font-mono';
         
-        const leftChar = step.left_node.char ? `'${step.left_node.char}'` : '...';
-        const rightChar = step.right_node.char ? `'${step.right_node.char}'` : '...';
+        const escapeChar = (c) => {
+            if (c === ' ') return '⎵ (空格)';
+            if (c === '\n') return '↵ (換行)';
+            if (c === '\t') return '⇥ (製表)';
+            return c;
+        };
         
         item.innerHTML = `
-            <div class="text-slate-300">第 ${idx + 1} 步</div>
-            <div class="text-blue-400">${leftChar} (${step.left_node.freq}) + ${rightChar} (${step.right_node.freq}) = ${step.parent_node.freq}</div>
+            <div class="text-slate-300">第 ${idx + 1} 字元</div>
+            <div class="text-blue-400 font-bold">'${escapeChar(char)}' &rarr; ${code} (頻率: ${freq})</div>
         `;
         
-        item.addEventListener('click', () => showStep(idx));
+        item.addEventListener('click', () => {
+            if (appState.animationPlaying) {
+                pauseAnimation();
+            }
+            showStep(idx);
+        });
         stepsList.appendChild(item);
-    });
+    }
 }
 
 // ============= API 狀態檢查 =============

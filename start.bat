@@ -1,1 +1,93 @@
-@echo off\nREM 統一啟動腳本 - 雙擊執行\nREM Author: Data Compression Visualization\nREM Purpose: 同時啟動前端和後端服務\n\nsetlocal enabledelayedexpansion\n\nREM 設定標題\ntitle Huffman 壓縮可視化 - 服務啟動\n\nREM 改變到腳本所在目錄\ncd /d \"%~dp0\"\n\nREM 清屏\ncls\n\necho.\necho ╔══════════════════════════════════════════════════════════════╗\necho ║   Huffman 壓縮可視化 - 統一啟動服務                          ║\necho ╚══════════════════════════════════════════════════════════════╝\necho.\necho 🚀 正在啟動服務...\necho.\n\nREM 檢查 Python 是否安裝\npython --version >nul 2>&1\nif errorlevel 1 (\n    echo ❌ 錯誤: 找不到 Python\n    echo.\n    echo 請確保:\n    echo 1. Python 已安裝\n    echo 2. Python 已添加到 PATH\n    echo.\n    echo 訪問 https://www.python.org 下載 Python\n    echo.\n    pause\n    exit /b 1\n)\n\nREM 檢查 start.py 是否存在\nif not exist \"start.py\" (\n    echo ❌ 錯誤: 找不到 start.py\n    echo.\n    echo 請確保 start.py 在: %cd%\n    echo.\n    pause\n    exit /b 1\n)\n\nREM 檢查後端目錄\nif not exist \"backend\" (\n    echo ❌ 錯誤: 找不到 backend 目錄\n    echo.\n    pause\n    exit /b 1\n)\n\nREM 檢查前端目錄\nif not exist \"frontend\" (\n    echo ❌ 錯誤: 找不到 frontend 目錄\n    echo.\n    pause\n    exit /b 1\n)\n\necho ✅ 所有檢查通過\necho.\n\nREM 啟動服務\necho 📦 啟動服務中...\necho.\n\npython start.py\n\nREM 如果 Python 返回非零代碼，顯示錯誤\nif errorlevel 1 (\n    echo.\n    echo ❌ 服務啟動失敗\n    echo.\n    pause\n    exit /b 1\n)\n\necho.\necho ✅ 服務已停止\necho.\npause\n
+@echo off
+REM 統一啟動腳本 - 雙擊執行
+REM Author: Data Compression Visualization
+REM Purpose: 同時啟動前端和後端服務
+
+setlocal enabledelayedexpansion
+
+REM 設定標題
+title Huffman 壓縮可視化 - 服務啟動
+
+REM 改變到腳本所在目錄
+cd /d "%~dp0"
+
+REM 清屏
+cls
+
+echo.
+echo ╔══════════════════════════════════════════════════════════════╗
+echo ║   Huffman 壓縮可視化 - 統一啟動服務                          ║
+echo ╚══════════════════════════════════════════════════════════════╝
+echo.
+echo 🚀 正在啟動服務...
+echo.
+
+REM 檢查 Python 是否安裝並設定指令
+set "PYTHON_CMD=python"
+if exist ".venv\Scripts\python.exe" (
+    set "PYTHON_CMD=.venv\Scripts\python.exe"
+    echo 💡 檢測到虛擬環境，將優先使用虛擬環境的 Python
+)
+
+%PYTHON_CMD% --version >nul 2>&1
+if errorlevel 1 (
+    echo ❌ 錯誤: 找不到 Python
+    echo.
+    echo 請確保:
+    echo 1. Python 已安裝
+    echo 2. Python 已添加到 PATH
+    echo.
+    echo 訪問 https://www.python.org 下載 Python
+    echo.
+    pause
+    exit /b 1
+)
+
+REM 檢查 start.py 是否存在
+if not exist "start.py" (
+    echo ❌ 錯誤: 找不到 start.py
+    echo.
+    echo 請確保 start.py 在: %cd%
+    echo.
+    pause
+    exit /b 1
+)
+
+REM 檢查後端目錄
+if not exist "backend" (
+    echo ❌ 錯誤: 找不到 backend 目錄
+    echo.
+    pause
+    exit /b 1
+)
+
+REM 檢查前端目錄
+if not exist "frontend" (
+    echo ❌ 錯誤: 找不到 frontend 目錄
+    echo.
+    pause
+    exit /b 1
+)
+
+echo ✅ 所有檢查通過
+echo.
+
+REM 啟動服務
+echo 📦 啟動服務中...
+echo.
+
+%PYTHON_CMD% start.py
+
+REM 如果 Python 返回非零代碼，顯示錯誤
+if errorlevel 1 (
+    echo.
+    echo ❌ 服務啟動失敗
+    echo.
+    pause
+    exit /b 1
+)
+
+echo.
+echo ✅ 服務已停止
+echo.
+pause

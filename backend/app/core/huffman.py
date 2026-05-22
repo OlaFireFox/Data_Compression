@@ -126,30 +126,28 @@ class HuffmanCoder:
         if not self.codes:
             raise ValueError("編碼表未生成，請先調用 generate_codes()")
         
-        encoded = ""
-        for char in text:
-            if char not in self.codes:
-                raise ValueError(f"字符 '{char}' 不在編碼表中")
-            encoded += self.codes[char]
-        return encoded
+        try:
+            return "".join(self.codes[char] for char in text)
+        except KeyError as e:
+            raise ValueError(f"字符 {e} 不在編碼表中")
     
     def decode(self, encoded_text: str) -> str:
         """解碼文本"""
         if not self.reverse_codes:
             raise ValueError("反向編碼表未生成，請先調用 generate_codes()")
         
-        decoded = ""
+        decoded_chars = []
         current_code = ""
         for bit in encoded_text:
             current_code += bit
             if current_code in self.reverse_codes:
-                decoded += self.reverse_codes[current_code]
+                decoded_chars.append(self.reverse_codes[current_code])
                 current_code = ""
         
         if current_code:
             raise ValueError(f"無效的編碼：剩餘位數 '{current_code}'")
         
-        return decoded
+        return "".join(decoded_chars)
     
     def compress(self, text: str) -> Tuple[str, Dict]:
         """完整的壓縮過程"""
