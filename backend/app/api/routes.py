@@ -292,3 +292,48 @@ async def image_block_detail(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"獲取區塊詳細數據失敗: {str(e)}")
 
+
+@router.get("/image/download-jpg")
+async def image_download_jpg(
+    filename: str,
+    quality: int,
+    mode: str
+):
+    """
+    將上傳的原始圖片以指定品質和色彩模式壓縮，並提供 .jpg 檔案下載
+    """
+    try:
+        file_path = UPLOADS_DIR / filename
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="原始圖片不存在")
+        
+        from PIL import Image
+        import io
+        from fastapi.responses import StreamingResponse
+        
+        img = Image.open(file_path)
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+            
+        if mode == "grayscale":
+            img = img.convert("L")
+            
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=quality)
+        buf.seek(0)
+        
+        # 移除時間戳前綴以還原檔名
+        original_name = filename.split("_", 2)[-1] if "_" in filename else filename
+        stem = Path(original_name).stem
+        download_filename = f"{stem}_q{quality}.jpg"
+        
+        return StreamingResponse(
+            buf,
+            media_type="image/jpeg",
+            headers={
+                "Content-Disposition": f'attachment; filename="{download_filename}"'
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"生成下載 JPEG 失敗: {str(e)}")
+

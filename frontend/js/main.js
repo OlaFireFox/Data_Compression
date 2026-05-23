@@ -17,6 +17,28 @@ const appState = {
     lastCharPath: null  // ⭐ 上一個字符的路徑（用於路徑對比邏輯）
 };
 
+// 節流函數：限制某個函數在一定時間內只能執行一次，用於滑動拉桿時即時壓縮預覽
+function throttle(func, limit) {
+    let lastFunc;
+    let lastRan;
+    return function() {
+        const context = this;
+        const args = arguments;
+        if (!lastRan) {
+            func.apply(context, args);
+            lastRan = Date.now();
+        } else {
+            clearTimeout(lastFunc);
+            lastFunc = setTimeout(function() {
+                if ((Date.now() - lastRan) >= limit) {
+                    func.apply(context, args);
+                    lastRan = Date.now();
+                }
+            }, limit - (Date.now() - lastRan));
+        }
+    }
+}
+
 // ============= DOM 元素 =============
 const elements = {
     dropZone: document.getElementById('dropZone'),
@@ -241,15 +263,65 @@ function setupEventListeners() {
         clearImageBtn.addEventListener('click', clearImage);
     }
 
-    // 壓縮品質拉桿
+    // 壓縮品質拉桿（使用 throttle 實現拖曳時即時壓縮預覽）
     const imageQuality = document.getElementById('imageQuality');
     const qualityValText = document.getElementById('qualityValText');
     if (imageQuality && qualityValText) {
+        // 每 120ms 限制最多發送一次 API 請求，達到平滑拖曳預覽效果
+        const throttledCompress = throttle(() => {
+            handleImageCompress();
+        }, 120);
+
         imageQuality.addEventListener('input', (e) => {
             qualityValText.innerText = e.target.value;
+            throttledCompress();
         });
         imageQuality.addEventListener('change', () => {
             handleImageCompress();
+        });
+    }
+
+    // 下載重建影像 (PNG)
+    const downloadPngBtn = document.getElementById('downloadPngBtn');
+    if (downloadPngBtn) {
+        downloadPngBtn.addEventListener('click', () => {
+            const src = document.getElementById('reconstructedImage').src;
+            if (!src || src.includes('placeholder')) {
+                showNotification('請先上傳圖片再進行下載！', 'warning');
+                return;
+            }
+            const quality = document.getElementById('imageQuality').value;
+            const link = document.createElement('a');
+            link.href = src;
+            
+            let originalName = 'reconstructed';
+            if (appState.currentImageFile) {
+                originalName = appState.currentImageFile.name.split('.').slice(0, -1).join('.');
+            }
+            link.download = `${originalName}_reconstructed_q${quality}.png`;
+            link.click();
+            showNotification('重建圖片下載開始 (PNG)', 'success');
+        });
+    }
+
+    // 下載實際壓縮 JPEG
+    const downloadJpgBtn = document.getElementById('downloadJpgBtn');
+    if (downloadJpgBtn) {
+        downloadJpgBtn.addEventListener('click', () => {
+            if (!appState.compressedImageFilename) {
+                showNotification('請先上傳圖片再進行下載！', 'warning');
+                return;
+            }
+            const quality = document.getElementById('imageQuality').value;
+            const mode = document.querySelector('input[name="imageMode"]:checked').value;
+            
+            const downloadUrl = API.getImageJpgDownloadUrl(
+                appState.compressedImageFilename,
+                quality,
+                mode
+            );
+            window.open(downloadUrl, '_blank');
+            showNotification('實際 JPEG 壓縮檔下載開始', 'success');
         });
     }
 

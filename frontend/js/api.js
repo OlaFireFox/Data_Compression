@@ -253,6 +253,17 @@ async function getBlockDetail(filename, quality, mode, blockRow, blockCol) {
     }
 }
 
+/**
+ * 獲取壓縮圖片下載 URL
+ * @param {string} filename - 圖片檔案名稱
+ * @param {number} quality - 壓縮品質
+ * @param {string} mode - 色彩模式
+ * @returns {string} 下載 URL
+ */
+function getImageJpgDownloadUrl(filename, quality, mode) {
+    return `${API_BASE_URL}/image/download-jpg?filename=${encodeURIComponent(filename)}&quality=${quality}&mode=${encodeURIComponent(mode)}`;
+}
+
 // 導出為全局變數
 window.API = {
     checkAPIConnection,
@@ -263,5 +274,6 @@ window.API = {
     formatFileSize,
     formatBits,
     compressImage,
-    getBlockDetail
+    getBlockDetail,
+    getImageJpgDownloadUrl
 };

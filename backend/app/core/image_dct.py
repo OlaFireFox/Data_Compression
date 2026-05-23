@@ -71,7 +71,7 @@ def idct_2d(block: np.ndarray) -> np.ndarray:
     return np.dot(np.dot(T.T, block), T)
 
 def estimate_compressed_size(original_bytes: int, quant_blocks_y, quant_blocks_cb=None, quant_blocks_cr=None) -> int:
-    """Estimates JPEG file size based on quantized AC RLE runs and DC differences"""
+    """Estimates JPEG file size based on quantized AC RLE runs and DC differences using vectorized numpy operations"""
     total_bits = 0
     all_channels = [quant_blocks_y]
     if quant_blocks_cb is not None:
@@ -79,24 +79,25 @@ def estimate_compressed_size(original_bytes: int, quant_blocks_y, quant_blocks_c
     if quant_blocks_cr is not None:
         all_channels.append(quant_blocks_cr)
         
-    for channel_blocks in all_channels:
-        num_blocks = len(channel_blocks)
-        total_bits += num_blocks * 6  # ~6 bits for DC difference on average
-        for block in channel_blocks:
-            # Flatten in zig-zag order
-            ac_coeffs = [block[r, c] for r, c in ZIGZAG_INDEX][1:]
-            
-            run = 0
-            for val in ac_coeffs:
-                if val == 0:
-                    run += 1
-                else:
-                    # Non-zero coefficient: RLE prefix + amplitude category bits
-                    category = math.ceil(math.log2(abs(val) + 1))
-                    total_bits += 6 + category  # 6 bits average Huffman prefix + amplitude bits
-                    run = 0
-            if run > 0:
-                total_bits += 4  # End of block (EOB) symbol
+    for q_blocks in all_channels:
+        num_blocks = len(q_blocks)
+        # DC component: ~6 bits per block average
+        total_bits += num_blocks * 6
+        
+        # AC components
+        ac_abs = np.abs(q_blocks)
+        # Zero out DC coefficients at index (0,0) for each block
+        ac_abs[:, 0, 0] = 0
+        
+        # Select all non-zero AC coefficients
+        non_zero_vals = ac_abs[ac_abs > 0]
+        if len(non_zero_vals) > 0:
+            categories = np.ceil(np.log2(non_zero_vals + 1.0))
+            # 6 bits average Huffman code prefix + category bits
+            total_bits += np.sum(categories) + len(non_zero_vals) * 6
+        
+        # EOB (End of block) symbol for each block (4 bits)
+        total_bits += num_blocks * 4
                 
     # Add JPEG header overhead (around 600 bytes)
     estimated_bytes = int(math.ceil(total_bits / 8.0)) + 600
@@ -107,6 +108,7 @@ def estimate_compressed_size(original_bytes: int, quant_blocks_y, quant_blocks_c
 def process_image_dct(image_path: str, quality: int, mode: str = "color"):
     """
     Compresses an image using 8x8 block DCT and Quantization.
+    Using vectorized NumPy operations to run in milliseconds.
     Returns: (base64_reconstructed, stats)
     """
     with Image.open(image_path) as img:
@@ -118,14 +120,14 @@ def process_image_dct(image_path: str, quality: int, mode: str = "color"):
         # Crop to multiples of 8
         w = orig_w - (orig_w % 8)
         h = orig_h - (orig_h % 8)
-        if w < 8: w = 8
-        if h < 8: h = 8
+        w = max(8, w)
+        h = max(8, h)
         
         img_cropped = img.crop((0, 0, w, h))
         img_arr = np.array(img_cropped, dtype=np.float32)
         
         # Original size in bytes
-        original_bytes = os.path.getsize(image_path) if hasattr(os, 'path') and os.path.exists(image_path) else w * h * 3
+        original_bytes = os.path.getsize(image_path) if os.path.exists(image_path) else w * h * 3
         
         # Color space conversion
         r = img_arr[:, :, 0]
@@ -140,52 +142,47 @@ def process_image_dct(image_path: str, quality: int, mode: str = "color"):
         q_table_y = get_quantization_table(quality, is_chrominance=False)
         q_table_c = get_quantization_table(quality, is_chrominance=True)
         
-        # Storage for reconstructed channels
-        y_rec = np.zeros_like(y)
-        cb_rec = np.zeros_like(cb) if mode == "color" else np.full_like(cb, 128.0)
-        cr_rec = np.zeros_like(cr) if mode == "color" else np.full_like(cr, 128.0)
+        # Reshape channels into grids of 8x8 blocks of shape (N, 8, 8)
+        N = (h // 8) * (w // 8)
         
-        # Lists for size estimation
-        quant_y_list = []
-        quant_cb_list = []
-        quant_cr_list = []
+        # Y Channel
+        y_blocks = y.reshape(h // 8, 8, w // 8, 8).transpose(0, 2, 1, 3).reshape(N, 8, 8)
+        y_shifted = y_blocks - 128.0
+        dct_y = np.matmul(np.matmul(T, y_shifted), T.T)
+        quant_y = np.round(dct_y / q_table_y)
+        zero_coeffs = np.sum(quant_y == 0)
         
-        total_coeffs = w * h
-        zero_coeffs = 0
+        dequant_y = quant_y * q_table_y
+        idct_y = np.matmul(np.matmul(T.T, dequant_y), T)
+        y_rec = (idct_y + 128.0).reshape(h // 8, w // 8, 8, 8).transpose(0, 2, 1, 3).reshape(h, w)
         
-        # Process block-by-block
-        for row in range(0, h, 8):
-            for col in range(0, w, 8):
-                # 1. Y Channel
-                block_y = y[row:row+8, col:col+8] - 128.0
-                dct_y = dct_2d(block_y)
-                quant_y = np.round(dct_y / q_table_y)
-                quant_y_list.append(quant_y)
-                zero_coeffs += np.sum(quant_y == 0)
-                
-                dequant_y = quant_y * q_table_y
-                y_rec[row:row+8, col:col+8] = idct_2d(dequant_y) + 128.0
-                
-                # Cb, Cr Channels (only processed if mode is color)
-                if mode == "color":
-                    block_cb = cb[row:row+8, col:col+8] - 128.0
-                    dct_cb = dct_2d(block_cb)
-                    quant_cb = np.round(dct_cb / q_table_c)
-                    quant_cb_list.append(quant_cb)
-                    zero_coeffs += np.sum(quant_cb == 0)
-                    
-                    dequant_cb = quant_cb * q_table_c
-                    cb_rec[row:row+8, col:col+8] = idct_2d(dequant_cb) + 128.0
-                    
-                    block_cr = cr[row:row+8, col:col+8] - 128.0
-                    dct_cr = dct_2d(block_cr)
-                    quant_cr = np.round(dct_cr / q_table_c)
-                    quant_cr_list.append(quant_cr)
-                    zero_coeffs += np.sum(quant_cr == 0)
-                    
-                    dequant_cr = quant_cr * q_table_c
-                    cr_rec[row:row+8, col:col+8] = idct_2d(dequant_cr) + 128.0
-                    
+        # Cb, Cr Channels (only processed if mode is color)
+        if mode == "color":
+            cb_blocks = cb.reshape(h // 8, 8, w // 8, 8).transpose(0, 2, 1, 3).reshape(N, 8, 8)
+            cb_shifted = cb_blocks - 128.0
+            dct_cb = np.matmul(np.matmul(T, cb_shifted), T.T)
+            quant_cb = np.round(dct_cb / q_table_c)
+            zero_coeffs += np.sum(quant_cb == 0)
+            
+            dequant_cb = quant_cb * q_table_c
+            idct_cb = np.matmul(np.matmul(T.T, dequant_cb), T)
+            cb_rec = (idct_cb + 128.0).reshape(h // 8, w // 8, 8, 8).transpose(0, 2, 1, 3).reshape(h, w)
+            
+            cr_blocks = cr.reshape(h // 8, 8, w // 8, 8).transpose(0, 2, 1, 3).reshape(N, 8, 8)
+            cr_shifted = cr_blocks - 128.0
+            dct_cr = np.matmul(np.matmul(T, cr_shifted), T.T)
+            quant_cr = np.round(dct_cr / q_table_c)
+            zero_coeffs += np.sum(quant_cr == 0)
+            
+            dequant_cr = quant_cr * q_table_c
+            idct_cr = np.matmul(np.matmul(T.T, dequant_cr), T)
+            cr_rec = (idct_cr + 128.0).reshape(h // 8, w // 8, 8, 8).transpose(0, 2, 1, 3).reshape(h, w)
+        else:
+            cb_rec = np.full_like(cb, 128.0)
+            cr_rec = np.full_like(cr, 128.0)
+            quant_cb = None
+            quant_cr = None
+            
         # Reconstruct RGB
         r_rec = y_rec + 1.402 * (cr_rec - 128.0)
         g_rec = y_rec - 0.34414 * (cb_rec - 128.0) - 0.71414 * (cr_rec - 128.0)
@@ -201,7 +198,7 @@ def process_image_dct(image_path: str, quality: int, mode: str = "color"):
         img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
         
         # Calculate statistics
-        total_coeff_count = total_coeffs * (3 if mode == "color" else 1)
+        total_coeff_count = N * 64 * (3 if mode == "color" else 1)
         zero_ratio = (zero_coeffs / total_coeff_count) * 100
         
         # PSNR Calculation
@@ -215,9 +212,9 @@ def process_image_dct(image_path: str, quality: int, mode: str = "color"):
         # Estimated size
         est_compressed_size = estimate_compressed_size(
             original_bytes,
-            quant_y_list,
-            quant_cb_list if mode == "color" else None,
-            quant_cr_list if mode == "color" else None
+            quant_y,
+            quant_cb,
+            quant_cr
         )
         
         compression_ratio = round(original_bytes / est_compressed_size, 2)
@@ -232,7 +229,7 @@ def process_image_dct(image_path: str, quality: int, mode: str = "color"):
             "compression_ratio": compression_ratio,
             "zero_percentage": round(zero_ratio, 2),
             "psnr": psnr,
-            "blocks_count": len(quant_y_list)
+            "blocks_count": N
         }
         
         return f"data:image/png;base64,{img_str}", stats

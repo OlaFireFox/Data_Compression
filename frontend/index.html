@@ -252,9 +252,11 @@
                                 <span id="hoverCoords" class="text-xs font-mono text-slate-400">滑鼠位置: -</span>
                             </div>
                             <div class="relative bg-slate-900 rounded-xl overflow-hidden border border-slate-700 flex items-center justify-center p-2" style="min-height: 300px;">
-                                <canvas id="originalCanvas" class="max-w-full h-auto cursor-crosshair shadow-inner"></canvas>
-                                <!-- 用於繪製選中框和懸停框的疊加層 -->
-                                <canvas id="gridOverlayCanvas" class="absolute top-2 left-2 pointer-events-none"></canvas>
+                                <div class="relative inline-block">
+                                    <canvas id="originalCanvas" class="max-w-full h-auto cursor-crosshair shadow-inner"></canvas>
+                                    <!-- 用於繪製選中框和懸停框的疊加層 -->
+                                    <canvas id="gridOverlayCanvas" class="absolute top-0 left-0 pointer-events-none w-full h-full"></canvas>
+                                </div>
                             </div>
                         </div>
 
@@ -270,6 +272,14 @@
                                     <div class="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                                     <span class="text-sm text-slate-300">正在進行 DCT 計算...</span>
                                 </div>
+                            </div>
+                            <div class="flex gap-3 mt-3">
+                                <button id="downloadPngBtn" class="flex-1 py-2 px-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-semibold shadow transition-colors flex items-center justify-center gap-1.5">
+                                    📥 下載重建影像 (PNG)
+                                </button>
+                                <button id="downloadJpgBtn" class="flex-1 py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow transition-colors flex items-center justify-center gap-1.5">
+                                    📥 下載實際壓縮 JPEG
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -293,6 +303,24 @@
                             <span class="text-xs text-slate-300">零</span>
                         </div>
                     </div>
+
+                    <!-- 說明折疊區 -->
+                    <details class="bg-slate-900/40 rounded-xl p-4 border border-slate-700/60 text-xs text-slate-300">
+                        <summary class="cursor-pointer font-medium text-blue-400 hover:text-blue-300 select-none flex items-center gap-1">
+                            <span>💡 點擊展開：這是什麼？了解 8x8 區塊分解與 6 個矩陣的數學含意</span>
+                        </summary>
+                        <div class="mt-3 space-y-3 leading-relaxed">
+                            <p>JPEG 圖片壓縮會將影像切成許多個 <b>8x8 像素的小方塊</b>，並對每個方塊單獨進行數學變換與壓縮。這 6 個步驟完整呈現了從「原始畫面」到「壓縮」，再到「還原重建」的運算過程：</p>
+                            <ol class="list-decimal pl-4 space-y-2.5">
+                                <li><b class="text-blue-400">1. 原始像素 (0~255)</b>：對應 8x8 像素在影像中的亮度 (Y) 通道值。0 代表全黑，255 代表全白。單元格的底色即是該點的真實灰階亮度。</li>
+                                <li><b class="text-blue-400">2. 零偏後 (-128~127)</b>：將原始像素減去 128。這能將數值範圍對稱地中心化在 0 左右，降低數值大小，以利後續的 DCT 精確度。</li>
+                                <li><b class="text-purple-400">3. 2D DCT 係數 (頻域)</b>：透過<b>二維離散餘弦變換 (DCT)</b>，將像素從「空間分佈」轉變為「頻率分佈」。左上角數值代表區塊的平均亮度 (直流 DC 係數)；越往右下角代表頻率越高、細節越精細的紋理 (交流 AC 係數)。</li>
+                                <li><b class="text-amber-500">4. 量化表 (Quantization Table)</b>：控制壓縮品質的步長表。數值代表該頻率係數除以多少。品質拉桿愈低，量化表中的數值就越大 (除數越大，捨棄的細節越多)；拉桿越高，數值就越小。</li>
+                                <li><b class="text-green-400">5. 量化結果 (大量歸零)</b>：將 DCT 係數除以量化表對應的步長並四捨五入取整 ($C = round(D/Q)$)。<b>這是有損壓縮的主力來源</b>：人類眼睛對高頻細節不敏感，因此高頻 (右下角) 係數除以較大的量化值後大多會變成 <b>0</b>。在進行 Zig-zag 掃描時，這些連續的 0 能被極高效率地壓縮。</li>
+                                <li><b class="text-emerald-400">6. 重建像素 (0~255)</b>：解壓縮還原時，將量化結果乘回量化表 ($C \times Q$)，再進行<b>反二維離散餘弦變換 (2D IDCT)</b> 並加回 128，最後限制在 0~255。與原始像素對比，您可以發現兩者數值非常接近，這就是「有損但肉眼難辨」的壓縮效果！</li>
+                            </ol>
+                        </div>
+                    </details>
 
                     <!-- 矩陣卡片輪播或網格 -->
                     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -423,6 +451,9 @@
                                 <span class="text-sm font-medium text-slate-200">灰階 (僅 Y)</span>
                             </label>
                         </div>
+                        <p class="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                            💡 <b>灰階模式</b>：完全捨棄 Cb 與 Cr (色度色差) 通道，僅保留 Y (亮度) 通道。這能呈現影像的黑白輪廓與亮度結構，用於教學如何對亮度進行單獨壓縮。
+                        </p>
                     </div>
 
                     <!-- 品質因子 Quality -->
