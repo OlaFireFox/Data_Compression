@@ -17,12 +17,14 @@ const ZIGZAG_ORDER = [
 class ImageVisualizer {
     constructor() {
         this.originalCanvas = document.getElementById('originalCanvas');
+        this.originalOverlayCanvas = document.getElementById('originalOverlayCanvas');
         this.reconstructedCanvas = document.getElementById('reconstructedCanvas');
         this.reconstructedOverlayCanvas = document.getElementById('reconstructedOverlayCanvas');
         
         this.ctxOrig = this.originalCanvas.getContext('2d');
+        this.ctxOverlayOrig = this.originalOverlayCanvas.getContext('2d');
         this.ctxRec = this.reconstructedCanvas.getContext('2d');
-        this.ctxOverlay = this.reconstructedOverlayCanvas.getContext('2d');
+        this.ctxOverlayRec = this.reconstructedOverlayCanvas.getContext('2d');
         
         this.imageLoaded = false;
         this.imageWidth = 0;
@@ -35,7 +37,7 @@ class ImageVisualizer {
         this.blocksY = 0;
         this.showGridLines = false; // 是否顯示方塊分割線
         
-        // Zoom and Drag states on the reconstructed canvas
+        // Zoom and Drag states on both canvases
         this.scale = 1.0;
         this.offsetX = 0;
         this.offsetY = 0;
@@ -44,7 +46,8 @@ class ImageVisualizer {
         this.dragOffsetStart = { x: 0, y: 0 };
         this.mouseDownTime = 0;
         
-        // Reconstructed image object
+        // Image objects
+        this.origImageObj = null;
         this.recImageObj = null;
         
         // Zig-zag scan states
@@ -59,98 +62,103 @@ class ImageVisualizer {
     }
     
     setupEvents() {
-        // Panning and hover events on the reconstructed canvas
-        this.reconstructedCanvas.addEventListener('mousedown', (e) => {
-            if (e.button === 0) { // Left click
-                this.isDragging = false;
-                this.dragStart = { x: e.clientX, y: e.clientY };
-                this.dragOffsetStart = { x: this.offsetX, y: this.offsetY };
-                this.mouseDownTime = Date.now();
-            }
-        });
+        // Register events on both original and reconstructed canvases for synchronized panning, zooming, and selection
+        const canvases = [this.originalCanvas, this.reconstructedCanvas];
         
-        this.reconstructedCanvas.addEventListener('mousemove', (e) => {
-            if (this.dragStart) {
-                const dx = e.clientX - this.dragStart.x;
-                const dy = e.clientY - this.dragStart.y;
-                if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-                    this.isDragging = true;
-                    // Scale drag movement relative to CSS dimensions vs internal resolution
-                    const rect = this.reconstructedCanvas.getBoundingClientRect();
-                    const scaleX = this.reconstructedCanvas.width / rect.width;
-                    const scaleY = this.reconstructedCanvas.height / rect.height;
-                    
-                    this.offsetX = this.dragOffsetStart.x + dx * scaleX;
-                    this.offsetY = this.dragOffsetStart.y + dy * scaleY;
-                    this.drawImages();
+        canvases.forEach(canvas => {
+            canvas.addEventListener('mousedown', (e) => {
+                if (e.button === 0) { // Left click
+                    this.isDragging = false;
+                    this.dragStart = { x: e.clientX, y: e.clientY };
+                    this.dragOffsetStart = { x: this.offsetX, y: this.offsetY };
+                    this.mouseDownTime = Date.now();
                 }
-            }
+            });
             
-            if (!this.isDragging && this.imageLoaded) {
-                const coords = this.getCoordsFromEvent(e);
-                if (coords.row !== this.hoveredBlock.row || coords.col !== this.hoveredBlock.col) {
-                    this.hoveredBlock = coords;
-                    document.getElementById('hoverCoords').innerText = `滑鼠位置: 行 ${coords.row}, 列 ${coords.col}`;
+            canvas.addEventListener('mousemove', (e) => {
+                if (this.dragStart) {
+                    const dx = e.clientX - this.dragStart.x;
+                    const dy = e.clientY - this.dragStart.y;
+                    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+                        this.isDragging = true;
+                        
+                        // Scale drag movement relative to CSS dimensions vs internal resolution of the active canvas
+                        const rect = canvas.getBoundingClientRect();
+                        const scaleX = canvas.width / rect.width;
+                        const scaleY = canvas.height / rect.height;
+                        
+                        this.offsetX = this.dragOffsetStart.x + dx * scaleX;
+                        this.offsetY = this.dragOffsetStart.y + dy * scaleY;
+                        this.drawImages();
+                    }
+                }
+                
+                if (!this.isDragging && this.imageLoaded) {
+                    const coords = this.getCoordsFromEvent(e, canvas);
+                    if (coords.row !== this.hoveredBlock.row || coords.col !== this.hoveredBlock.col) {
+                        this.hoveredBlock = coords;
+                        document.getElementById('hoverCoords').innerText = `滑鼠位置: 行 ${coords.row}, 列 ${coords.col}`;
+                        this.drawGrid();
+                    }
+                }
+            });
+            
+            canvas.addEventListener('mouseup', (e) => {
+                if (this.dragStart) {
+                    const duration = Date.now() - this.mouseDownTime;
+                    this.dragStart = null;
+                    if (!this.isDragging && duration < 250 && this.imageLoaded) {
+                        // Click selection
+                        const coords = this.getCoordsFromEvent(e, canvas);
+                        this.selectedBlock = coords;
+                        document.getElementById('blockInfo').innerText = `選中區塊: 行 ${coords.row}, 列 ${coords.col}`;
+                        this.drawGrid();
+                        
+                        // Dispatch event
+                        const event = new CustomEvent('blockSelected', { detail: coords });
+                        window.dispatchEvent(event);
+                    }
+                    this.isDragging = false;
+                }
+            });
+            
+            canvas.addEventListener('mouseleave', () => {
+                if (this.imageLoaded) {
+                    this.hoveredBlock = { row: -1, col: -1 };
+                    document.getElementById('hoverCoords').innerText = `滑鼠位置: -`;
                     this.drawGrid();
                 }
-            }
+            });
+            
+            // Zoom via mouse wheel
+            canvas.addEventListener('wheel', (e) => {
+                if (!this.imageLoaded) return;
+                e.preventDefault();
+                
+                const zoomIntensity = 0.1;
+                const mouseX = e.clientX;
+                const mouseY = e.clientY;
+                
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                
+                const mX = (mouseX - rect.left) * scaleX;
+                const mY = (mouseY - rect.top) * scaleY;
+                
+                const imageX = (mX - this.offsetX) / this.scale;
+                const imageY = (mY - this.offsetY) / this.scale;
+                
+                const zoomFactor = e.deltaY < 0 ? (1 + zoomIntensity) : (1 - zoomIntensity);
+                const newScale = Math.max(0.5, Math.min(20.0, this.scale * zoomFactor));
+                
+                this.offsetX = mX - imageX * newScale;
+                this.offsetY = mY - imageY * newScale;
+                this.scale = newScale;
+                
+                this.drawImages();
+            }, { passive: false });
         });
-        
-        window.addEventListener('mouseup', (e) => {
-            if (this.dragStart) {
-                const duration = Date.now() - this.mouseDownTime;
-                this.dragStart = null;
-                if (!this.isDragging && duration < 250 && this.imageLoaded) {
-                    // Click selection
-                    const coords = this.getCoordsFromEvent(e);
-                    this.selectedBlock = coords;
-                    document.getElementById('blockInfo').innerText = `選中區塊: 行 ${coords.row}, 列 ${coords.col}`;
-                    this.drawGrid();
-                    
-                    // Dispatch event
-                    const event = new CustomEvent('blockSelected', { detail: coords });
-                    window.dispatchEvent(event);
-                }
-                this.isDragging = false;
-            }
-        });
-        
-        this.reconstructedCanvas.addEventListener('mouseleave', () => {
-            if (this.imageLoaded) {
-                this.hoveredBlock = { row: -1, col: -1 };
-                document.getElementById('hoverCoords').innerText = `滑鼠位置: -`;
-                this.drawGrid();
-            }
-        });
-        
-        // Zoom via mouse wheel
-        this.reconstructedCanvas.addEventListener('wheel', (e) => {
-            if (!this.imageLoaded) return;
-            e.preventDefault();
-            
-            const zoomIntensity = 0.1;
-            const mouseX = e.clientX;
-            const mouseY = e.clientY;
-            
-            const rect = this.reconstructedCanvas.getBoundingClientRect();
-            const scaleX = this.reconstructedCanvas.width / rect.width;
-            const scaleY = this.reconstructedCanvas.height / rect.height;
-            
-            const mX = (mouseX - rect.left) * scaleX;
-            const mY = (mouseY - rect.top) * scaleY;
-            
-            const imageX = (mX - this.offsetX) / this.scale;
-            const imageY = (mY - this.offsetY) / this.scale;
-            
-            const zoomFactor = e.deltaY < 0 ? (1 + zoomIntensity) : (1 - zoomIntensity);
-            const newScale = Math.max(0.5, Math.min(20.0, this.scale * zoomFactor));
-            
-            this.offsetX = mX - imageX * newScale;
-            this.offsetY = mY - imageY * newScale;
-            this.scale = newScale;
-            
-            this.drawImages();
-        }, { passive: false });
         
         // Grid toggle checkbox
         const showGridLinesCheckbox = document.getElementById('showGridLinesCheckbox');
@@ -203,12 +211,21 @@ class ImageVisualizer {
     }
     
     loadImage(src, callback) {
-        const img = new Image();
-        img.onload = () => {
-            const w = img.width - (img.width % 8);
-            const h = img.height - (img.height % 8);
-            this.imageWidth = Math.max(8, w);
-            this.imageHeight = Math.max(8, h);
+        this.origImageObj = new Image();
+        this.origImageObj.onload = () => {
+            // Scale logic to match backend thumbnail size (max 800px)
+            let w = this.origImageObj.width;
+            let h = this.origImageObj.height;
+            const maxVal = 800;
+            if (w > maxVal || h > maxVal) {
+                const ratio = Math.min(maxVal / w, maxVal / h);
+                w = Math.round(w * ratio);
+                h = Math.round(h * ratio);
+            }
+            this.imageWidth = w - (w % 8);
+            this.imageHeight = h - (h % 8);
+            this.imageWidth = Math.max(8, this.imageWidth);
+            this.imageHeight = Math.max(8, this.imageHeight);
             
             this.blocksX = this.imageWidth / 8;
             this.blocksY = this.imageHeight / 8;
@@ -216,14 +233,13 @@ class ImageVisualizer {
             // Set canvas dimensions
             this.originalCanvas.width = this.imageWidth;
             this.originalCanvas.height = this.imageHeight;
+            this.originalOverlayCanvas.width = this.imageWidth;
+            this.originalOverlayCanvas.height = this.imageHeight;
+            
             this.reconstructedCanvas.width = this.imageWidth;
             this.reconstructedCanvas.height = this.imageHeight;
             this.reconstructedOverlayCanvas.width = this.imageWidth;
             this.reconstructedOverlayCanvas.height = this.imageHeight;
-            
-            // Draw cropped original image
-            this.ctxOrig.clearRect(0, 0, this.imageWidth, this.imageHeight);
-            this.ctxOrig.drawImage(img, 0, 0, this.imageWidth, this.imageHeight);
             
             this.imageLoaded = true;
             
@@ -241,7 +257,7 @@ class ImageVisualizer {
             
             if (callback) callback();
         };
-        img.src = src;
+        this.origImageObj.src = src;
     }
     
     loadReconstructedImage(base64, callback) {
@@ -256,19 +272,31 @@ class ImageVisualizer {
     drawImages() {
         if (!this.imageLoaded) return;
         
-        const ctx = this.ctxRec;
-        const w = this.reconstructedCanvas.width;
-        const h = this.reconstructedCanvas.height;
-        
-        ctx.clearRect(0, 0, w, h);
-        ctx.save();
-        ctx.translate(this.offsetX, this.offsetY);
-        ctx.scale(this.scale, this.scale);
-        
-        if (this.recImageObj && this.recImageObj.src) {
-            ctx.drawImage(this.recImageObj, 0, 0, this.imageWidth, this.imageHeight);
+        // Draw Original
+        const ctxO = this.ctxOrig;
+        const wO = this.originalCanvas.width;
+        const hO = this.originalCanvas.height;
+        ctxO.clearRect(0, 0, wO, hO);
+        ctxO.save();
+        ctxO.translate(this.offsetX, this.offsetY);
+        ctxO.scale(this.scale, this.scale);
+        if (this.origImageObj && this.origImageObj.src) {
+            ctxO.drawImage(this.origImageObj, 0, 0, this.imageWidth, this.imageHeight);
         }
-        ctx.restore();
+        ctxO.restore();
+        
+        // Draw Reconstructed
+        const ctxR = this.ctxRec;
+        const wR = this.reconstructedCanvas.width;
+        const hR = this.reconstructedCanvas.height;
+        ctxR.clearRect(0, 0, wR, hR);
+        ctxR.save();
+        ctxR.translate(this.offsetX, this.offsetY);
+        ctxR.scale(this.scale, this.scale);
+        if (this.recImageObj && this.recImageObj.src) {
+            ctxR.drawImage(this.recImageObj, 0, 0, this.imageWidth, this.imageHeight);
+        }
+        ctxR.restore();
         
         this.drawGrid();
     }
@@ -276,64 +304,73 @@ class ImageVisualizer {
     drawGrid() {
         if (!this.imageLoaded) return;
         
-        const ctx = this.ctxOverlay;
-        const w = this.reconstructedOverlayCanvas.width;
-        const h = this.reconstructedOverlayCanvas.height;
+        const overlays = [
+            { canvas: this.originalOverlayCanvas, ctx: this.ctxOverlayOrig },
+            { canvas: this.reconstructedOverlayCanvas, ctx: this.ctxOverlayRec }
+        ];
         
-        ctx.clearRect(0, 0, w, h);
-        ctx.save();
-        ctx.translate(this.offsetX, this.offsetY);
-        ctx.scale(this.scale, this.scale);
-        
-        // Draw grid lines
-        if (this.showGridLines) {
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-            ctx.lineWidth = 0.5 / this.scale;
+        overlays.forEach(({ canvas, ctx }) => {
+            if (!canvas || !ctx) return;
             
-            // Vertical lines
-            for (let x = 8; x < this.imageWidth; x += 8) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, this.imageHeight);
-                ctx.stroke();
+            const w = canvas.width;
+            const h = canvas.height;
+            
+            ctx.clearRect(0, 0, w, h);
+            ctx.save();
+            ctx.translate(this.offsetX, this.offsetY);
+            ctx.scale(this.scale, this.scale);
+            
+            // Draw grid lines
+            if (this.showGridLines) {
+                // Use semi-transparent theme blue for high visibility on both light and dark backgrounds!
+                ctx.strokeStyle = 'rgba(59, 130, 246, 0.35)';
+                ctx.lineWidth = 0.5 / this.scale;
+                
+                // Vertical lines
+                for (let x = 8; x < this.imageWidth; x += 8) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, this.imageHeight);
+                    ctx.stroke();
+                }
+                
+                // Horizontal lines
+                for (let y = 8; y < this.imageHeight; y += 8) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(this.imageWidth, y);
+                    ctx.stroke();
+                }
             }
             
-            // Horizontal lines
-            for (let y = 8; y < this.imageHeight; y += 8) {
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(this.imageWidth, y);
-                ctx.stroke();
+            // Draw hover block (Orange outline)
+            if (this.hoveredBlock.row >= 0 && this.hoveredBlock.col >= 0) {
+                ctx.strokeStyle = '#f97316'; // Orange
+                ctx.lineWidth = 1.5 / this.scale;
+                ctx.strokeRect(this.hoveredBlock.col * 8, this.hoveredBlock.row * 8, 8, 8);
             }
-        }
-        
-        // Draw hover block (Orange outline)
-        if (this.hoveredBlock.row >= 0 && this.hoveredBlock.col >= 0) {
-            ctx.strokeStyle = '#f97316'; // Orange
-            ctx.lineWidth = 1.5 / this.scale;
-            ctx.strokeRect(this.hoveredBlock.col * 8, this.hoveredBlock.row * 8, 8, 8);
-        }
-        
-        // Draw selected block (Green outline + fill)
-        if (this.selectedBlock.row >= 0 && this.selectedBlock.col >= 0) {
-            ctx.strokeStyle = '#10b981'; // Emerald Green
-            ctx.lineWidth = 2.0 / this.scale;
-            ctx.strokeRect(this.selectedBlock.col * 8, this.selectedBlock.row * 8, 8, 8);
             
-            ctx.fillStyle = 'rgba(16, 185, 129, 0.15)';
-            ctx.fillRect(this.selectedBlock.col * 8, this.selectedBlock.row * 8, 8, 8);
-        }
-        
-        ctx.restore();
+            // Draw selected block (Green outline + fill)
+            if (this.selectedBlock.row >= 0 && this.selectedBlock.col >= 0) {
+                ctx.strokeStyle = '#10b981'; // Emerald Green
+                ctx.lineWidth = 2.0 / this.scale;
+                ctx.strokeRect(this.selectedBlock.col * 8, this.selectedBlock.row * 8, 8, 8);
+                
+                ctx.fillStyle = 'rgba(16, 185, 129, 0.15)';
+                ctx.fillRect(this.selectedBlock.col * 8, this.selectedBlock.row * 8, 8, 8);
+            }
+            
+            ctx.restore();
+        });
     }
     
-    getCoordsFromEvent(e) {
-        const rect = this.reconstructedCanvas.getBoundingClientRect();
+    getCoordsFromEvent(e, canvas) {
+        const rect = canvas.getBoundingClientRect();
         const clientX = e.clientX - rect.left;
         const clientY = e.clientY - rect.top;
         
-        const scaleX = this.reconstructedCanvas.width / rect.width;
-        const scaleY = this.reconstructedCanvas.height / rect.height;
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
         const canvasX = clientX * scaleX;
         const canvasY = clientY * scaleY;
         
@@ -580,11 +617,13 @@ class ImageVisualizer {
         this.scale = 1.0;
         this.offsetX = 0;
         this.offsetY = 0;
+        this.origImageObj = null;
         this.recImageObj = null;
         
         this.ctxOrig.clearRect(0, 0, this.originalCanvas.width, this.originalCanvas.height);
+        this.ctxOverlayOrig.clearRect(0, 0, this.originalOverlayCanvas.width, this.originalOverlayCanvas.height);
         this.ctxRec.clearRect(0, 0, this.reconstructedCanvas.width, this.reconstructedCanvas.height);
-        this.ctxOverlay.clearRect(0, 0, this.reconstructedOverlayCanvas.width, this.reconstructedOverlayCanvas.height);
+        this.ctxOverlayRec.clearRect(0, 0, this.reconstructedOverlayCanvas.width, this.reconstructedOverlayCanvas.height);
         this.ctxZigzag.clearRect(0, 0, this.zigzagCanvas.width, this.zigzagCanvas.height);
         
         const zoomOrig = document.getElementById('zoomOriginalCanvas');

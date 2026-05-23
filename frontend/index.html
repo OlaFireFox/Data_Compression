@@ -252,7 +252,9 @@
                             </div>
                             <div class="relative bg-slate-900 rounded-xl overflow-hidden border border-slate-700 flex items-center justify-center p-2" style="min-height: 300px;">
                                 <div class="relative inline-block">
-                                    <canvas id="originalCanvas" class="max-w-full h-auto shadow-inner"></canvas>
+                                    <canvas id="originalCanvas" class="max-w-full h-auto cursor-crosshair shadow-inner"></canvas>
+                                    <!-- 用於繪製選中框和懸停框的疊加層 -->
+                                    <canvas id="originalOverlayCanvas" class="absolute top-0 left-0 pointer-events-none w-full h-full"></canvas>
                                 </div>
                             </div>
                         </div>
