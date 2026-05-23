@@ -248,6 +248,15 @@ async def image_compress(
         with open(upload_path, "wb") as f:
             f.write(contents)
             
+        # 開啟圖片，如果是大型圖片（寬或高大於 800 像素），則等比例縮小至 800 像素以內。
+        # 這能避免 8x8 區塊網格因為像素太密而變成一團灰色，並顯著提升計算與可視化效能。
+        from PIL import Image
+        img = Image.open(upload_path)
+        max_size = 800
+        if img.width > max_size or img.height > max_size:
+            img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+            img.save(upload_path)
+            
         # 執行 DCT 壓縮
         reconstructed_data_uri, stats = process_image_dct(
             image_path=str(upload_path),
@@ -327,11 +336,15 @@ async def image_download_jpg(
         stem = Path(original_name).stem
         download_filename = f"{stem}_q{quality}.jpg"
         
+        # 處理中文檔名 header 編碼，避免 latin-1 編碼錯誤 (RFC 5987)
+        import urllib.parse
+        encoded_filename = urllib.parse.quote(download_filename)
+        
         return StreamingResponse(
             buf,
             media_type="image/jpeg",
             headers={
-                "Content-Disposition": f'attachment; filename="{download_filename}"'
+                "Content-Disposition": f"attachment; filename=\"compressed.jpg\"; filename*=UTF-8''{encoded_filename}"
             }
         )
     except Exception as e:

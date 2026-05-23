@@ -1371,6 +1371,10 @@ async function fetchBlockDetails(row, col) {
             appState.imageVisualizer.renderMatrix('matrixQuantized', matrices.quantized_block, 'quantized');
             appState.imageVisualizer.renderMatrix('matrixReconstructed', matrices.reconstructed_block, 'pixel');
             
+            // Render zoomed original and reconstructed Y-channel block canvases (20x zoom)
+            appState.imageVisualizer.drawZoomedBlock('zoomOriginalCanvas', matrices.original_block);
+            appState.imageVisualizer.drawZoomedBlock('zoomReconstructedCanvas', matrices.reconstructed_block);
+
             // Set Zig-zag scanning sequence
             appState.imageVisualizer.setZigzagData(matrices.zigzag_sequence);
             

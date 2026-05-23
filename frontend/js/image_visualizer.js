@@ -32,6 +32,7 @@ class ImageVisualizer {
         this.selectedBlock = { row: 0, col: 0 };
         this.blocksX = 0;
         this.blocksY = 0;
+        this.showGridLines = false; // 是否顯示方塊分割線
         
         // Zig-zag scan states
         this.zigzagCanvas = document.getElementById('zigzagCanvas');
@@ -50,6 +51,16 @@ class ImageVisualizer {
         this.originalCanvas.addEventListener('mouseleave', () => this.handleMouseLeave());
         this.originalCanvas.addEventListener('click', (e) => this.handleMouseClick(e));
         
+        // 分割線切換
+        const showGridLinesCheckbox = document.getElementById('showGridLinesCheckbox');
+        if (showGridLinesCheckbox) {
+            this.showGridLines = showGridLinesCheckbox.checked;
+            showGridLinesCheckbox.addEventListener('change', (e) => {
+                this.showGridLines = e.target.checked;
+                this.drawGrid();
+            });
+        }
+
         // Zig-zag controls
         document.getElementById('zigzagPlayBtn').addEventListener('click', () => this.toggleZigzagPlay());
         document.getElementById('zigzagStepBtn').addEventListener('click', () => this.stepZigzag());
@@ -97,24 +108,26 @@ class ImageVisualizer {
         const ctx = this.ctxOverlay;
         ctx.clearRect(0, 0, this.imageWidth, this.imageHeight);
         
-        // Draw grid lines
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-        ctx.lineWidth = 0.5;
-        
-        // Vertical lines
-        for (let x = 8; x < this.imageWidth; x += 8) {
-            ctx.beginPath();
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, this.imageHeight);
-            ctx.stroke();
-        }
-        
-        // Horizontal lines
-        for (let y = 8; y < this.imageHeight; y += 8) {
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(this.imageWidth, y);
-            ctx.stroke();
+        // Draw grid lines (only if showGridLines is enabled)
+        if (this.showGridLines) {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+            ctx.lineWidth = 0.5;
+            
+            // Vertical lines
+            for (let x = 8; x < this.imageWidth; x += 8) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, this.imageHeight);
+                ctx.stroke();
+            }
+            
+            // Horizontal lines
+            for (let y = 8; y < this.imageHeight; y += 8) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(this.imageWidth, y);
+                ctx.stroke();
+            }
         }
         
         // Draw hover block (Orange outline)
@@ -402,6 +415,22 @@ class ImageVisualizer {
         this.highlightZigzagStep();
         this.drawZigzagCanvas();
     }
+
+    drawZoomedBlock(canvasId, matrixData) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas || !matrixData) return;
+        const ctx = canvas.getContext('2d');
+        const cellSize = canvas.width / 8;
+        
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < 8; c++) {
+                const val = matrixData[r][c];
+                ctx.fillStyle = `rgb(${val}, ${val}, ${val})`;
+                ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+            }
+        }
+    }
     
     reset() {
         this.stopZigzag();
@@ -416,6 +445,12 @@ class ImageVisualizer {
         this.ctxOverlay.clearRect(0, 0, this.gridOverlayCanvas.width, this.gridOverlayCanvas.height);
         this.ctxZigzag.clearRect(0, 0, this.zigzagCanvas.width, this.zigzagCanvas.height);
         this.reconstructedImage.src = '';
+
+        // Clear zoomed canvases
+        const zoomOrig = document.getElementById('zoomOriginalCanvas');
+        if (zoomOrig) zoomOrig.getContext('2d').clearRect(0, 0, zoomOrig.width, zoomOrig.height);
+        const zoomRec = document.getElementById('zoomReconstructedCanvas');
+        if (zoomRec) zoomRec.getContext('2d').clearRect(0, 0, zoomRec.width, zoomRec.height);
         
         // Clear matrix cells
         const containers = ['matrixOriginal', 'matrixShifted', 'matrixDct', 'matrixQuantTable', 'matrixQuantized', 'matrixReconstructed', 'zigzagArrayContainer'];

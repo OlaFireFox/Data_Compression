@@ -248,8 +248,14 @@
                         <!-- 原始圖片 + 8x8 懸浮網格 -->
                         <div class="space-y-2">
                             <div class="flex items-center justify-between">
-                                <span class="text-sm font-medium text-blue-400">原始圖片 & 8x8 區塊網格</span>
-                                <span id="hoverCoords" class="text-xs font-mono text-slate-400">滑鼠位置: -</span>
+                                <span class="text-sm font-medium text-blue-400">原始圖片</span>
+                                <div class="flex items-center gap-4">
+                                    <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-300 select-none">
+                                        <input type="checkbox" id="showGridLinesCheckbox" class="rounded border-slate-600 bg-slate-900 text-blue-500 focus:ring-0" />
+                                        <span>顯示方塊分割線</span>
+                                    </label>
+                                    <span id="hoverCoords" class="text-xs font-mono text-slate-400">滑鼠位置: -</span>
+                                </div>
                             </div>
                             <div class="relative bg-slate-900 rounded-xl overflow-hidden border border-slate-700 flex items-center justify-center p-2" style="min-height: 300px;">
                                 <div class="relative inline-block">
@@ -324,6 +330,32 @@
 
                     <!-- 矩陣卡片輪播或網格 -->
                     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                        <!-- 🔍 區塊局部視覺放大對比 -->
+                        <div class="bg-slate-900/60 p-6 rounded-xl border border-slate-700/80 md:col-span-2 xl:col-span-3 flex flex-col md:flex-row gap-6 items-center justify-between">
+                            <div class="space-y-2 max-w-xl text-center md:text-left">
+                                <h4 class="text-sm font-semibold text-blue-400 flex items-center gap-1.5 justify-center md:justify-start">
+                                    🔍 8x8 區塊像素局部放大對比 (放大 20 倍)
+                                </h4>
+                                <p class="text-xs text-slate-400 leading-relaxed">
+                                    點擊左側原圖的任意方塊，此處會將該 8x8 亮度區塊的<b>原始像素</b>與經 DCT 壓縮重建後的<b>重建像素</b>進行高倍率放大比對。您可以在這裡非常直觀地觀察到 DCT 有損壓縮所造成的細節失真（例如高頻邊緣被抹平、出現方塊雜訊等）。
+                                </p>
+                            </div>
+                            <div class="flex gap-6 items-center justify-center flex-wrap">
+                                <!-- 原始區塊 -->
+                                <div class="flex flex-col items-center gap-2">
+                                    <span class="text-[10px] font-bold text-blue-400 uppercase tracking-wider">原始 Y 亮度區塊</span>
+                                    <canvas id="zoomOriginalCanvas" width="160" height="160" class="border border-slate-700 rounded bg-slate-950 shadow-md" style="image-rendering: pixelated; width: 160px; height: 160px;"></canvas>
+                                </div>
+                                <!-- 箭頭 -->
+                                <div class="text-slate-500 font-bold text-lg select-none hidden sm:block">➡️</div>
+                                <!-- 重建區塊 -->
+                                <div class="flex flex-col items-center gap-2">
+                                    <span class="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">重建 Y 亮度區塊</span>
+                                    <canvas id="zoomReconstructedCanvas" width="160" height="160" class="border border-slate-700 rounded bg-slate-950 shadow-md" style="image-rendering: pixelated; width: 160px; height: 160px;"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- 1. 原始像素值 -->
                         <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/80">
                             <div class="flex justify-between items-center mb-3">
