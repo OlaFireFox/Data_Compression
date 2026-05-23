@@ -17,11 +17,12 @@ const ZIGZAG_ORDER = [
 class ImageVisualizer {
     constructor() {
         this.originalCanvas = document.getElementById('originalCanvas');
-        this.gridOverlayCanvas = document.getElementById('gridOverlayCanvas');
-        this.reconstructedImage = document.getElementById('reconstructedImage');
+        this.reconstructedCanvas = document.getElementById('reconstructedCanvas');
+        this.reconstructedOverlayCanvas = document.getElementById('reconstructedOverlayCanvas');
         
         this.ctxOrig = this.originalCanvas.getContext('2d');
-        this.ctxOverlay = this.gridOverlayCanvas.getContext('2d');
+        this.ctxRec = this.reconstructedCanvas.getContext('2d');
+        this.ctxOverlay = this.reconstructedOverlayCanvas.getContext('2d');
         
         this.imageLoaded = false;
         this.imageWidth = 0;
@@ -33,6 +34,18 @@ class ImageVisualizer {
         this.blocksX = 0;
         this.blocksY = 0;
         this.showGridLines = false; // 是否顯示方塊分割線
+        
+        // Zoom and Drag states on the reconstructed canvas
+        this.scale = 1.0;
+        this.offsetX = 0;
+        this.offsetY = 0;
+        this.isDragging = false;
+        this.dragStart = null;
+        this.dragOffsetStart = { x: 0, y: 0 };
+        this.mouseDownTime = 0;
+        
+        // Reconstructed image object
+        this.recImageObj = null;
         
         // Zig-zag scan states
         this.zigzagCanvas = document.getElementById('zigzagCanvas');
@@ -46,12 +59,100 @@ class ImageVisualizer {
     }
     
     setupEvents() {
-        // Hover/Click events on the grid overlay
-        this.originalCanvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
-        this.originalCanvas.addEventListener('mouseleave', () => this.handleMouseLeave());
-        this.originalCanvas.addEventListener('click', (e) => this.handleMouseClick(e));
+        // Panning and hover events on the reconstructed canvas
+        this.reconstructedCanvas.addEventListener('mousedown', (e) => {
+            if (e.button === 0) { // Left click
+                this.isDragging = false;
+                this.dragStart = { x: e.clientX, y: e.clientY };
+                this.dragOffsetStart = { x: this.offsetX, y: this.offsetY };
+                this.mouseDownTime = Date.now();
+            }
+        });
         
-        // 分割線切換
+        this.reconstructedCanvas.addEventListener('mousemove', (e) => {
+            if (this.dragStart) {
+                const dx = e.clientX - this.dragStart.x;
+                const dy = e.clientY - this.dragStart.y;
+                if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+                    this.isDragging = true;
+                    // Scale drag movement relative to CSS dimensions vs internal resolution
+                    const rect = this.reconstructedCanvas.getBoundingClientRect();
+                    const scaleX = this.reconstructedCanvas.width / rect.width;
+                    const scaleY = this.reconstructedCanvas.height / rect.height;
+                    
+                    this.offsetX = this.dragOffsetStart.x + dx * scaleX;
+                    this.offsetY = this.dragOffsetStart.y + dy * scaleY;
+                    this.drawImages();
+                }
+            }
+            
+            if (!this.isDragging && this.imageLoaded) {
+                const coords = this.getCoordsFromEvent(e);
+                if (coords.row !== this.hoveredBlock.row || coords.col !== this.hoveredBlock.col) {
+                    this.hoveredBlock = coords;
+                    document.getElementById('hoverCoords').innerText = `滑鼠位置: 行 ${coords.row}, 列 ${coords.col}`;
+                    this.drawGrid();
+                }
+            }
+        });
+        
+        window.addEventListener('mouseup', (e) => {
+            if (this.dragStart) {
+                const duration = Date.now() - this.mouseDownTime;
+                this.dragStart = null;
+                if (!this.isDragging && duration < 250 && this.imageLoaded) {
+                    // Click selection
+                    const coords = this.getCoordsFromEvent(e);
+                    this.selectedBlock = coords;
+                    document.getElementById('blockInfo').innerText = `選中區塊: 行 ${coords.row}, 列 ${coords.col}`;
+                    this.drawGrid();
+                    
+                    // Dispatch event
+                    const event = new CustomEvent('blockSelected', { detail: coords });
+                    window.dispatchEvent(event);
+                }
+                this.isDragging = false;
+            }
+        });
+        
+        this.reconstructedCanvas.addEventListener('mouseleave', () => {
+            if (this.imageLoaded) {
+                this.hoveredBlock = { row: -1, col: -1 };
+                document.getElementById('hoverCoords').innerText = `滑鼠位置: -`;
+                this.drawGrid();
+            }
+        });
+        
+        // Zoom via mouse wheel
+        this.reconstructedCanvas.addEventListener('wheel', (e) => {
+            if (!this.imageLoaded) return;
+            e.preventDefault();
+            
+            const zoomIntensity = 0.1;
+            const mouseX = e.clientX;
+            const mouseY = e.clientY;
+            
+            const rect = this.reconstructedCanvas.getBoundingClientRect();
+            const scaleX = this.reconstructedCanvas.width / rect.width;
+            const scaleY = this.reconstructedCanvas.height / rect.height;
+            
+            const mX = (mouseX - rect.left) * scaleX;
+            const mY = (mouseY - rect.top) * scaleY;
+            
+            const imageX = (mX - this.offsetX) / this.scale;
+            const imageY = (mY - this.offsetY) / this.scale;
+            
+            const zoomFactor = e.deltaY < 0 ? (1 + zoomIntensity) : (1 - zoomIntensity);
+            const newScale = Math.max(0.5, Math.min(20.0, this.scale * zoomFactor));
+            
+            this.offsetX = mX - imageX * newScale;
+            this.offsetY = mY - imageY * newScale;
+            this.scale = newScale;
+            
+            this.drawImages();
+        }, { passive: false });
+        
+        // Grid toggle checkbox
         const showGridLinesCheckbox = document.getElementById('showGridLinesCheckbox');
         if (showGridLinesCheckbox) {
             this.showGridLines = showGridLinesCheckbox.checked;
@@ -60,16 +161,50 @@ class ImageVisualizer {
                 this.drawGrid();
             });
         }
-
+        
+        // Zoom buttons
+        const imgZoomInBtn = document.getElementById('imgZoomInBtn');
+        if (imgZoomInBtn) {
+            imgZoomInBtn.addEventListener('click', () => this.zoomAroundCenter(1.2));
+        }
+        const imgZoomOutBtn = document.getElementById('imgZoomOutBtn');
+        if (imgZoomOutBtn) {
+            imgZoomOutBtn.addEventListener('click', () => this.zoomAroundCenter(1 / 1.2));
+        }
+        const imgZoomResetBtn = document.getElementById('imgZoomResetBtn');
+        if (imgZoomResetBtn) {
+            imgZoomResetBtn.addEventListener('click', () => this.resetView());
+        }
+        
         // Zig-zag controls
         document.getElementById('zigzagPlayBtn').addEventListener('click', () => this.toggleZigzagPlay());
         document.getElementById('zigzagStepBtn').addEventListener('click', () => this.stepZigzag());
     }
     
+    zoomAroundCenter(factor) {
+        if (!this.imageLoaded) return;
+        const cx = this.reconstructedCanvas.width / 2;
+        const cy = this.reconstructedCanvas.height / 2;
+        const imageX = (cx - this.offsetX) / this.scale;
+        const imageY = (cy - this.offsetY) / this.scale;
+        
+        this.scale = Math.max(0.5, Math.min(20.0, this.scale * factor));
+        this.offsetX = cx - imageX * this.scale;
+        this.offsetY = cy - imageY * this.scale;
+        this.drawImages();
+    }
+    
+    resetView() {
+        if (!this.imageLoaded) return;
+        this.scale = 1.0;
+        this.offsetX = 0;
+        this.offsetY = 0;
+        this.drawImages();
+    }
+    
     loadImage(src, callback) {
         const img = new Image();
         img.onload = () => {
-            // Crop dimensions to multiple of 8
             const w = img.width - (img.width % 8);
             const h = img.height - (img.height % 8);
             this.imageWidth = Math.max(8, w);
@@ -81,37 +216,79 @@ class ImageVisualizer {
             // Set canvas dimensions
             this.originalCanvas.width = this.imageWidth;
             this.originalCanvas.height = this.imageHeight;
-            this.gridOverlayCanvas.width = this.imageWidth;
-            this.gridOverlayCanvas.height = this.imageHeight;
+            this.reconstructedCanvas.width = this.imageWidth;
+            this.reconstructedCanvas.height = this.imageHeight;
+            this.reconstructedOverlayCanvas.width = this.imageWidth;
+            this.reconstructedOverlayCanvas.height = this.imageHeight;
             
-            // Sync styling sizes
-            this.gridOverlayCanvas.style.width = this.originalCanvas.style.width;
-            this.gridOverlayCanvas.style.height = this.originalCanvas.style.height;
-            
-            // Draw cropped image
+            // Draw cropped original image
             this.ctxOrig.clearRect(0, 0, this.imageWidth, this.imageHeight);
             this.ctxOrig.drawImage(img, 0, 0, this.imageWidth, this.imageHeight);
             
             this.imageLoaded = true;
-            this.selectedBlock = { row: 0, col: 0 };
             
-            this.drawGrid();
+            // Default selected block to the center of the image detail region
+            const centerCol = Math.floor(this.blocksX / 2);
+            const centerRow = Math.floor(this.blocksY / 2);
+            this.selectedBlock = { row: centerRow, col: centerCol };
+            
+            // Reset view transforms
+            this.scale = 1.0;
+            this.offsetX = 0;
+            this.offsetY = 0;
+            
+            this.drawImages();
             
             if (callback) callback();
         };
         img.src = src;
     }
     
+    loadReconstructedImage(base64, callback) {
+        this.recImageObj = new Image();
+        this.recImageObj.onload = () => {
+            this.drawImages();
+            if (callback) callback();
+        };
+        this.recImageObj.src = base64;
+    }
+    
+    drawImages() {
+        if (!this.imageLoaded) return;
+        
+        const ctx = this.ctxRec;
+        const w = this.reconstructedCanvas.width;
+        const h = this.reconstructedCanvas.height;
+        
+        ctx.clearRect(0, 0, w, h);
+        ctx.save();
+        ctx.translate(this.offsetX, this.offsetY);
+        ctx.scale(this.scale, this.scale);
+        
+        if (this.recImageObj && this.recImageObj.src) {
+            ctx.drawImage(this.recImageObj, 0, 0, this.imageWidth, this.imageHeight);
+        }
+        ctx.restore();
+        
+        this.drawGrid();
+    }
+    
     drawGrid() {
         if (!this.imageLoaded) return;
         
         const ctx = this.ctxOverlay;
-        ctx.clearRect(0, 0, this.imageWidth, this.imageHeight);
+        const w = this.reconstructedOverlayCanvas.width;
+        const h = this.reconstructedOverlayCanvas.height;
         
-        // Draw grid lines (only if showGridLines is enabled)
+        ctx.clearRect(0, 0, w, h);
+        ctx.save();
+        ctx.translate(this.offsetX, this.offsetY);
+        ctx.scale(this.scale, this.scale);
+        
+        // Draw grid lines
         if (this.showGridLines) {
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-            ctx.lineWidth = 0.5;
+            ctx.lineWidth = 0.5 / this.scale;
             
             // Vertical lines
             for (let x = 8; x < this.imageWidth; x += 8) {
@@ -133,32 +310,38 @@ class ImageVisualizer {
         // Draw hover block (Orange outline)
         if (this.hoveredBlock.row >= 0 && this.hoveredBlock.col >= 0) {
             ctx.strokeStyle = '#f97316'; // Orange
-            ctx.lineWidth = 1.5;
+            ctx.lineWidth = 1.5 / this.scale;
             ctx.strokeRect(this.hoveredBlock.col * 8, this.hoveredBlock.row * 8, 8, 8);
         }
         
-        // Draw selected block (Green glow)
+        // Draw selected block (Green outline + fill)
         if (this.selectedBlock.row >= 0 && this.selectedBlock.col >= 0) {
             ctx.strokeStyle = '#10b981'; // Emerald Green
-            ctx.lineWidth = 2.0;
+            ctx.lineWidth = 2.0 / this.scale;
             ctx.strokeRect(this.selectedBlock.col * 8, this.selectedBlock.row * 8, 8, 8);
             
-            // Soft transparent fill for selected block
             ctx.fillStyle = 'rgba(16, 185, 129, 0.15)';
             ctx.fillRect(this.selectedBlock.col * 8, this.selectedBlock.row * 8, 8, 8);
         }
+        
+        ctx.restore();
     }
     
     getCoordsFromEvent(e) {
-        const rect = this.originalCanvas.getBoundingClientRect();
-        const scaleX = this.originalCanvas.width / rect.width;
-        const scaleY = this.originalCanvas.height / rect.height;
+        const rect = this.reconstructedCanvas.getBoundingClientRect();
+        const clientX = e.clientX - rect.left;
+        const clientY = e.clientY - rect.top;
         
-        const x = (e.clientX - rect.left) * scaleX;
-        const y = (e.clientY - rect.top) * scaleY;
+        const scaleX = this.reconstructedCanvas.width / rect.width;
+        const scaleY = this.reconstructedCanvas.height / rect.height;
+        const canvasX = clientX * scaleX;
+        const canvasY = clientY * scaleY;
         
-        const col = Math.floor(x / 8);
-        const row = Math.floor(y / 8);
+        const imageX = (canvasX - this.offsetX) / this.scale;
+        const imageY = (canvasY - this.offsetY) / this.scale;
+        
+        const col = Math.floor(imageX / 8);
+        const row = Math.floor(imageY / 8);
         
         return {
             col: Math.max(0, Math.min(this.blocksX - 1, col)),
@@ -166,44 +349,15 @@ class ImageVisualizer {
         };
     }
     
-    handleMouseMove(e) {
-        if (!this.imageLoaded) return;
-        
-        const coords = this.getCoordsFromEvent(e);
-        
-        if (coords.row !== this.hoveredBlock.row || coords.col !== this.hoveredBlock.col) {
-            this.hoveredBlock = coords;
-            document.getElementById('hoverCoords').innerText = `滑鼠位置: 行 ${coords.row}, 列 ${coords.col}`;
-            this.drawGrid();
-        }
-    }
-    
-    handleMouseLeave() {
-        if (!this.imageLoaded) return;
-        this.hoveredBlock = { row: -1, col: -1 };
-        document.getElementById('hoverCoords').innerText = `滑鼠位置: -`;
-        this.drawGrid();
-    }
-    
-    handleMouseClick(e) {
-        if (!this.imageLoaded) return;
-        
-        const coords = this.getCoordsFromEvent(e);
-        this.selectedBlock = coords;
-        
-        document.getElementById('blockInfo').innerText = `選中區塊: 行 ${coords.row}, 列 ${coords.col}`;
-        this.drawGrid();
-        
-        // Dispatch custom event to trigger backend fetch of details
-        const event = new CustomEvent('blockSelected', { detail: coords });
-        window.dispatchEvent(event);
+    getReconstructedPngDataUrl() {
+        if (!this.imageLoaded || !this.recImageObj) return null;
+        return this.recImageObj.src;
     }
     
     renderMatrix(containerId, data, type) {
         const container = document.getElementById(containerId);
         container.innerHTML = '';
         
-        // Find max absolute value to scale color opacity
         let maxVal = 1;
         if (type === 'dct' || type === 'dequant' || type === 'quantized') {
             maxVal = Math.max(...data.flat().map(v => Math.abs(v)));
@@ -217,16 +371,13 @@ class ImageVisualizer {
                 cell.className = 'matrix-cell';
                 cell.id = `${containerId}-cell-${r}-${c}`;
                 
-                // Set formatting
                 if (type === 'dct' || type === 'dequant') {
                     cell.innerText = Math.round(val);
                 } else {
                     cell.innerText = val;
                 }
                 
-                // Color mapping
                 if (type === 'pixel') {
-                    // Grayscale physical representation
                     cell.style.backgroundColor = `rgb(${val}, ${val}, ${val})`;
                     cell.style.color = val > 128 ? '#0f172a' : '#f8fafc';
                     cell.style.border = '1px solid rgba(255, 255, 255, 0.15)';
@@ -235,7 +386,6 @@ class ImageVisualizer {
                         cell.classList.add('matrix-cell-zero');
                     } else if (val > 0) {
                         cell.classList.add('matrix-cell-pos');
-                        // Scale color intensity based on size
                         const ratio = Math.abs(val) / maxVal;
                         cell.style.backgroundColor = `rgba(59, 130, 246, ${Math.max(0.1, ratio * 0.6)})`;
                     } else {
@@ -278,30 +428,25 @@ class ImageVisualizer {
     }
     
     highlightZigzagStep() {
-        // Highlight step numbers
         document.getElementById('zigzagIndexText').innerText = this.zigzagIndex;
         document.getElementById('zigzagValueText').innerText = this.zigzagData[this.zigzagIndex] !== undefined ? this.zigzagData[this.zigzagIndex] : '-';
         
-        // Remove previous highlights
         document.querySelectorAll('.matrix-cell-highlight').forEach(el => el.classList.remove('matrix-cell-highlight'));
         document.querySelectorAll('[id^="zigzag-array-item-"]').forEach(el => {
             el.classList.remove('bg-emerald-500', 'text-slate-950', 'font-bold');
             el.classList.add('bg-slate-900', 'text-slate-400');
         });
         
-        // Add new highlights
         const [r, c] = ZIGZAG_ORDER[this.zigzagIndex];
         const cell = document.getElementById(`matrixQuantized-cell-${r}-${c}`);
         if (cell) {
             cell.classList.add('matrix-cell-highlight');
         }
         
-        const arrayItem = document.getElementById(`zigzag-array-item-${this.zigzagIndex}`);
+        const arrayItem = document.getElementById('zigzag-array-item-' + this.zigzagIndex);
         if (arrayItem) {
             arrayItem.classList.remove('bg-slate-900', 'text-slate-400');
             arrayItem.classList.add('bg-emerald-500', 'text-slate-950', 'font-bold');
-            
-            // Scroll into view
             arrayItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         }
     }
@@ -314,7 +459,6 @@ class ImageVisualizer {
         
         ctx.clearRect(0, 0, w, h);
         
-        // 1. Draw 8x8 background cells
         for (let r = 0; r < 8; r++) {
             for (let c = 0; c < 8; c++) {
                 ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
@@ -322,20 +466,16 @@ class ImageVisualizer {
             }
         }
         
-        // 2. Draw scanned cells (soft green fill)
         for (let i = 0; i <= this.zigzagIndex; i++) {
             const [r, c] = ZIGZAG_ORDER[i];
             ctx.fillStyle = 'rgba(16, 185, 129, 0.15)';
             ctx.fillRect(c * cellSize + 1, r * cellSize + 1, cellSize - 2, cellSize - 2);
         }
         
-        // 3. Draw zigzag path line
         ctx.beginPath();
         ctx.lineWidth = 1.5;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        
-        // Highlighted scanned path
         ctx.strokeStyle = '#10b981'; // Emerald Green
         for (let i = 0; i <= this.zigzagIndex; i++) {
             const [r, c] = ZIGZAG_ORDER[i];
@@ -346,7 +486,6 @@ class ImageVisualizer {
         }
         ctx.stroke();
         
-        // Faint remaining path
         if (this.zigzagIndex < 63) {
             ctx.beginPath();
             ctx.lineWidth = 1.0;
@@ -360,10 +499,9 @@ class ImageVisualizer {
                 ctx.lineTo(c * cellSize + cellSize / 2, r * cellSize + cellSize / 2);
             }
             ctx.stroke();
-            ctx.setLineDash([]); // Reset dash
+            ctx.setLineDash([]);
         }
         
-        // 4. Draw current pointer node (Glow orange circle)
         const [cr, cc] = ZIGZAG_ORDER[this.zigzagIndex];
         const cx = cc * cellSize + cellSize / 2;
         const cy = cr * cellSize + cellSize / 2;
@@ -392,7 +530,7 @@ class ImageVisualizer {
                 if (this.zigzagIndex === 63) {
                     this.stopZigzag();
                 }
-            }, 250); // Speed: 4 steps per second
+            }, 250);
         }
     }
     
@@ -415,7 +553,7 @@ class ImageVisualizer {
         this.highlightZigzagStep();
         this.drawZigzagCanvas();
     }
-
+    
     drawZoomedBlock(canvasId, matrixData) {
         const canvas = document.getElementById(canvasId);
         if (!canvas || !matrixData) return;
@@ -439,20 +577,21 @@ class ImageVisualizer {
         this.selectedBlock = { row: 0, col: 0 };
         this.zigzagIndex = 0;
         this.zigzagData = [];
+        this.scale = 1.0;
+        this.offsetX = 0;
+        this.offsetY = 0;
+        this.recImageObj = null;
         
-        // Clear canvases
         this.ctxOrig.clearRect(0, 0, this.originalCanvas.width, this.originalCanvas.height);
-        this.ctxOverlay.clearRect(0, 0, this.gridOverlayCanvas.width, this.gridOverlayCanvas.height);
+        this.ctxRec.clearRect(0, 0, this.reconstructedCanvas.width, this.reconstructedCanvas.height);
+        this.ctxOverlay.clearRect(0, 0, this.reconstructedOverlayCanvas.width, this.reconstructedOverlayCanvas.height);
         this.ctxZigzag.clearRect(0, 0, this.zigzagCanvas.width, this.zigzagCanvas.height);
-        this.reconstructedImage.src = '';
-
-        // Clear zoomed canvases
+        
         const zoomOrig = document.getElementById('zoomOriginalCanvas');
         if (zoomOrig) zoomOrig.getContext('2d').clearRect(0, 0, zoomOrig.width, zoomOrig.height);
         const zoomRec = document.getElementById('zoomReconstructedCanvas');
         if (zoomRec) zoomRec.getContext('2d').clearRect(0, 0, zoomRec.width, zoomRec.height);
         
-        // Clear matrix cells
         const containers = ['matrixOriginal', 'matrixShifted', 'matrixDct', 'matrixQuantTable', 'matrixQuantized', 'matrixReconstructed', 'zigzagArrayContainer'];
         containers.forEach(id => {
             const el = document.getElementById(id);

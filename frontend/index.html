@@ -245,36 +245,51 @@
 
                     <!-- Canvas 對比區 -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <!-- 原始圖片 + 8x8 懸浮網格 -->
+                        <!-- 原始圖片 -->
                         <div class="space-y-2">
                             <div class="flex items-center justify-between">
                                 <span class="text-sm font-medium text-blue-400">原始圖片</span>
-                                <div class="flex items-center gap-4">
-                                    <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-300 select-none">
-                                        <input type="checkbox" id="showGridLinesCheckbox" class="rounded border-slate-600 bg-slate-900 text-blue-500 focus:ring-0" />
-                                        <span>顯示方塊分割線</span>
-                                    </label>
-                                    <span id="hoverCoords" class="text-xs font-mono text-slate-400">滑鼠位置: -</span>
-                                </div>
                             </div>
                             <div class="relative bg-slate-900 rounded-xl overflow-hidden border border-slate-700 flex items-center justify-center p-2" style="min-height: 300px;">
                                 <div class="relative inline-block">
-                                    <canvas id="originalCanvas" class="max-w-full h-auto cursor-crosshair shadow-inner"></canvas>
-                                    <!-- 用於繪製選中框和懸停框的疊加層 -->
-                                    <canvas id="gridOverlayCanvas" class="absolute top-0 left-0 pointer-events-none w-full h-full"></canvas>
+                                    <canvas id="originalCanvas" class="max-w-full h-auto shadow-inner"></canvas>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- 重構圖片 -->
+                        <!-- 重建圖片 -->
                         <div class="space-y-2">
-                            <div class="flex items-center justify-between">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                 <span class="text-sm font-medium text-purple-400">重建圖片 (DCT-IDCT 解壓後)</span>
-                                <span class="text-xs font-mono text-slate-400" id="blockInfo">選中區塊: 行 0, 列 0</span>
+                                <div class="flex flex-wrap items-center gap-3">
+                                    <!-- 分割線開關 -->
+                                    <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-300 select-none">
+                                        <input type="checkbox" id="showGridLinesCheckbox" class="rounded border-slate-600 bg-slate-900 text-blue-500 focus:ring-0" />
+                                        <span>顯示方塊分割線</span>
+                                    </label>
+                                    <!-- 縮放按鈕組 -->
+                                    <div class="inline-flex rounded-md shadow-sm" role="group">
+                                        <button type="button" id="imgZoomInBtn" class="px-2 py-1 text-xs font-medium text-slate-300 bg-slate-700 hover:bg-slate-600 rounded-l-md border border-slate-600 transition-colors" title="放大">
+                                            🔍+
+                                        </button>
+                                        <button type="button" id="imgZoomOutBtn" class="px-2 py-1 text-xs font-medium text-slate-300 bg-slate-700 hover:bg-slate-600 border-t border-b border-slate-600 transition-colors" title="縮小">
+                                            🔍-
+                                        </button>
+                                        <button type="button" id="imgZoomResetBtn" class="px-2 py-1 text-xs font-medium text-slate-300 bg-slate-700 hover:bg-slate-600 rounded-r-md border border-slate-600 transition-colors" title="重設">
+                                            🔄
+                                        </button>
+                                    </div>
+                                    <span id="hoverCoords" class="text-xs font-mono text-slate-400">滑鼠位置: -</span>
+                                    <span class="text-xs font-mono text-slate-400 border-l border-slate-700 pl-2" id="blockInfo">選中區塊: 行 0, 列 0</span>
+                                </div>
                             </div>
                             <div class="relative bg-slate-900 rounded-xl overflow-hidden border border-slate-700 flex items-center justify-center p-2" style="min-height: 300px;">
-                                <img id="reconstructedImage" class="max-w-full h-auto object-contain" alt="Reconstructed image will appear here" />
-                                <div id="compressingSpinner" class="hidden absolute inset-0 bg-slate-950 bg-opacity-70 flex items-center justify-center flex-col gap-3">
+                                <div class="relative inline-block">
+                                    <canvas id="reconstructedCanvas" class="max-w-full h-auto cursor-crosshair shadow-inner"></canvas>
+                                    <!-- 用於繪製選中框和懸停框的疊加層 -->
+                                    <canvas id="reconstructedOverlayCanvas" class="absolute top-0 left-0 pointer-events-none w-full h-full"></canvas>
+                                </div>
+                                <div id="compressingSpinner" class="hidden absolute inset-0 bg-slate-950 bg-opacity-70 flex items-center justify-center flex-col gap-3 z-10">
                                     <div class="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                                     <span class="text-sm text-slate-300">正在進行 DCT 計算...</span>
                                 </div>
@@ -337,8 +352,11 @@
                                     🔍 8x8 區塊像素局部放大對比 (放大 20 倍)
                                 </h4>
                                 <p class="text-xs text-slate-400 leading-relaxed">
-                                    點擊左側原圖的任意方塊，此處會將該 8x8 亮度區塊的<b>原始像素</b>與經 DCT 壓縮重建後的<b>重建像素</b>進行高倍率放大比對。您可以在這裡非常直觀地觀察到 DCT 有損壓縮所造成的細節失真（例如高頻邊緣被抹平、出現方塊雜訊等）。
+                                    點擊<b>右側重建圖</b>的任意方塊，此處會將該 8x8 亮度區塊的<b>原始像素</b>與經 DCT 壓縮重建後的<b>重建像素</b>進行高倍率放大比對。您可以在這裡非常直觀地觀察到 DCT 有損壓縮所造成的細節失真（例如高頻邊緣被抹平、出現方塊雜訊等）。
                                 </p>
+                                <div class="mt-2 text-slate-400 text-[10px] bg-slate-900/40 p-2.5 rounded-lg border border-slate-700/60 leading-normal">
+                                    💡 <b>提示</b>：對於純白、純黑或平坦的單色背景區域（例如角色周圍的空白背景），由於沒有高頻 AC 細節，量化過程不會損失任何資訊。此時原始像素與重建像素將完全相同。請點擊 <b>有顏色、有邊緣或細節複雜的區域</b>（如眼睛、頭髮或線條處）來觀察壓縮失真效果。
+                                </div>
                             </div>
                             <div class="flex gap-6 items-center justify-center flex-wrap">
                                 <!-- 原始區塊 -->

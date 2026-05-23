@@ -285,7 +285,7 @@ function setupEventListeners() {
     const downloadPngBtn = document.getElementById('downloadPngBtn');
     if (downloadPngBtn) {
         downloadPngBtn.addEventListener('click', () => {
-            const src = document.getElementById('reconstructedImage').src;
+            const src = appState.imageVisualizer ? appState.imageVisualizer.getReconstructedPngDataUrl() : null;
             if (!src || src.includes('placeholder')) {
                 showNotification('請先上傳圖片再進行下載！', 'warning');
                 return;
@@ -1311,7 +1311,9 @@ async function handleImageCompress() {
             appState.compressedImageFilename = response.data.filename;
             
             // Reconstructed image display
-            document.getElementById('reconstructedImage').src = response.data.reconstructed_image;
+            if (appState.imageVisualizer) {
+                appState.imageVisualizer.loadReconstructedImage(response.data.reconstructed_image);
+            }
             
             // Statistics indicators
             const stats = response.data.stats;
