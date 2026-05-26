@@ -126,8 +126,11 @@ def process_image_dct(image_path: str, quality: int, mode: str = "color"):
         img_cropped = img.crop((0, 0, w, h))
         img_arr = np.array(img_cropped, dtype=np.float32)
         
-        # Original size in bytes
-        original_bytes = os.path.getsize(image_path) if os.path.exists(image_path) else w * h * 3
+        # Original size in bytes (Raw uncompressed pixel data)
+        # In image compression (e.g. JPEG), the compression ratio is calculated relative to 
+        # the uncompressed raw pixel data (3 bytes per pixel for RGB, 1 byte for grayscale),
+        # not the already compressed file size on disk.
+        original_bytes = w * h * (3 if mode == "color" else 1)
         
         # Color space conversion
         r = img_arr[:, :, 0]
