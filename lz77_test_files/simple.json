@@ -1,0 +1,39 @@
+[
+  {
+    "id": 1,
+    "name": "Allen Chang",
+    "role": "Developer",
+    "active": true,
+    "skills": [
+      "Python",
+      "Javascript",
+      "HTML",
+      "CSS"
+    ],
+    "registered": "2026-06-06"
+  },
+  {
+    "id": 2,
+    "name": "Jane Smith",
+    "role": "Designer",
+    "active": false,
+    "skills": [
+      "Figma",
+      "UI/UX",
+      "Illustrator"
+    ],
+    "registered": "2026-05-15"
+  },
+  {
+    "id": 3,
+    "name": "Bob Johnson",
+    "role": "Manager",
+    "active": true,
+    "skills": [
+      "Agile",
+      "Scrum",
+      "Management"
+    ],
+    "registered": "2026-04-01"
+  }
+]

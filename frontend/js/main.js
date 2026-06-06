@@ -339,6 +339,9 @@ function setupEventListeners() {
         document.getElementById('detailCol').innerText = col;
         fetchBlockDetails(row, col);
     });
+
+    // 載入 LZ77 事件監聽
+    setupLz77EventListeners();
 }
 
 // ============= 拖放處理 =============
@@ -1235,23 +1238,37 @@ function showNotification(message, type = 'info') {
 function switchTab(activeTab) {
     const tabHuffman = document.getElementById('tab-huffman');
     const tabImage = document.getElementById('tab-image');
+    const tabLz77 = document.getElementById('tab-lz77');
     const huffmanSection = document.getElementById('huffman-section');
     const imageSection = document.getElementById('image-section');
+    const lz77Section = document.getElementById('lz77-section');
+    
+    // Reset all tabs classes
+    const inactiveClass = "px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 text-slate-400 hover:text-slate-200";
+    const activeClass = "px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 bg-blue-600 text-white shadow-md";
+    
+    if (tabHuffman) tabHuffman.className = inactiveClass;
+    if (tabImage) tabImage.className = inactiveClass;
+    if (tabLz77) tabLz77.className = inactiveClass;
+    
+    if (huffmanSection) huffmanSection.classList.add('hidden');
+    if (imageSection) imageSection.classList.add('hidden');
+    if (lz77Section) lz77Section.classList.add('hidden');
     
     if (activeTab === 'huffman') {
-        tabHuffman.className = "px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 bg-blue-600 text-white shadow-md";
-        tabImage.className = "px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 text-slate-400 hover:text-slate-200";
-        huffmanSection.classList.remove('hidden');
-        imageSection.classList.add('hidden');
-    } else {
-        tabImage.className = "px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 bg-blue-600 text-white shadow-md";
-        tabHuffman.className = "px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 text-slate-400 hover:text-slate-200";
-        imageSection.classList.remove('hidden');
-        huffmanSection.classList.add('hidden');
-        
-        // Lazy initialize ImageVisualizer when switching to image tab
+        if (tabHuffman) tabHuffman.className = activeClass;
+        if (huffmanSection) huffmanSection.classList.remove('hidden');
+    } else if (activeTab === 'image') {
+        if (tabImage) tabImage.className = activeClass;
+        if (imageSection) imageSection.classList.remove('hidden');
         if (!appState.imageVisualizer) {
             appState.imageVisualizer = new ImageVisualizer();
+        }
+    } else if (activeTab === 'lz77') {
+        if (tabLz77) tabLz77.className = activeClass;
+        if (lz77Section) lz77Section.classList.remove('hidden');
+        if (!appState.lz77Visualizer) {
+            appState.lz77Visualizer = new LZ77Visualizer('lz77WindowCanvas');
         }
     }
 }
@@ -1404,3 +1421,560 @@ function clearImage() {
 }
 
 console.log('應用已載入 (v1.1.0 支援 JPEG/DCT 可視化)');
+
+
+// ============= LZ77 & LZH 邏輯實現 =============
+
+function setupLz77EventListeners() {
+    const tabLz77 = document.getElementById('tab-lz77');
+    if (tabLz77) {
+        tabLz77.addEventListener('click', () => switchTab('lz77'));
+    }
+
+    const lz77DropZone = document.getElementById('lz77DropZone');
+    const lz77FileInput = document.getElementById('lz77FileInput');
+    
+    if (lz77DropZone && lz77FileInput) {
+        lz77DropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            lz77DropZone.classList.add('border-teal-500', 'bg-slate-800', 'shadow-lg', 'shadow-teal-500/10');
+        });
+        
+        lz77DropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            lz77DropZone.classList.remove('border-teal-500', 'bg-slate-800', 'shadow-lg', 'shadow-teal-500/10');
+        });
+        
+        lz77DropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            lz77DropZone.classList.remove('border-teal-500', 'bg-slate-800', 'shadow-lg', 'shadow-teal-500/10');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleLz77FileSelect(files[0]);
+            }
+        });
+        
+        lz77DropZone.addEventListener('click', () => lz77FileInput.click());
+        lz77FileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleLz77FileSelect(e.target.files[0]);
+            }
+        });
+    }
+
+    // 範本按鈕
+    const btnLoadLogTemplate = document.getElementById('btnLoadLogTemplate');
+    const btnLoadJsonTemplate = document.getElementById('btnLoadJsonTemplate');
+    if (btnLoadLogTemplate) {
+        btnLoadLogTemplate.addEventListener('click', () => loadLz77Template('log'));
+    }
+    if (btnLoadJsonTemplate) {
+        btnLoadJsonTemplate.addEventListener('click', () => loadLz77Template('json'));
+    }
+
+    // 清除按鈕
+    const clearLz77Btn = document.getElementById('clearLz77Btn');
+    if (clearLz77Btn) {
+        clearLz77Btn.addEventListener('click', clearLz77Workspace);
+    }
+
+    // 壓縮按鈕
+    const lz77CompressBtn = document.getElementById('lz77CompressBtn');
+    if (lz77CompressBtn) {
+        lz77CompressBtn.addEventListener('click', handleLz77Compress);
+    }
+
+    // 滑桿連動文字
+    const rngLz77WindowSize = document.getElementById('rngLz77WindowSize');
+    const txtLz77WindowSize = document.getElementById('txtLz77WindowSize');
+    const rngLz77LookaheadSize = document.getElementById('rngLz77LookaheadSize');
+    const txtLz77LookaheadSize = document.getElementById('txtLz77LookaheadSize');
+    const lz77ParamWarning = document.getElementById('lz77ParamWarning');
+    const lz77ResultContainer = document.getElementById('lz77ResultContainer');
+
+    function checkParamChange() {
+        if (lz77ParamWarning && lz77ResultContainer && !lz77ResultContainer.classList.contains('hidden')) {
+            lz77ParamWarning.classList.remove('hidden');
+        }
+    }
+
+    if (rngLz77WindowSize && txtLz77WindowSize) {
+        rngLz77WindowSize.addEventListener('input', (e) => {
+            txtLz77WindowSize.textContent = `${e.target.value} B`;
+            checkParamChange();
+        });
+    }
+    if (rngLz77LookaheadSize && txtLz77LookaheadSize) {
+        rngLz77LookaheadSize.addEventListener('input', (e) => {
+            txtLz77LookaheadSize.textContent = `${e.target.value} B`;
+            checkParamChange();
+        });
+    }
+
+    // 動畫速度滑桿
+    const lz77AnimationSpeed = document.getElementById('lz77AnimationSpeed');
+    const lz77SpeedValue = document.getElementById('lz77SpeedValue');
+    if (lz77AnimationSpeed && lz77SpeedValue) {
+        lz77AnimationSpeed.addEventListener('input', (e) => {
+            lz77SpeedValue.textContent = `${e.target.value}x`;
+        });
+    }
+
+    // 下載按鈕
+    const downloadLz77Btn = document.getElementById('downloadLz77Btn');
+    const downloadLzhBtn = document.getElementById('downloadLzhBtn');
+    if (downloadLz77Btn) {
+        downloadLz77Btn.addEventListener('click', downloadLz77File);
+    }
+    if (downloadLzhBtn) {
+        downloadLzhBtn.addEventListener('click', downloadLzhFile);
+    }
+
+    // 動畫控制
+    const lz77PlayBtn = document.getElementById('lz77PlayBtn');
+    const lz77StepBtn = document.getElementById('lz77StepBtn');
+    const lz77ResetBtn = document.getElementById('lz77ResetBtn');
+    if (lz77PlayBtn) {
+        lz77PlayBtn.addEventListener('click', toggleLz77Play);
+    }
+    if (lz77StepBtn) {
+        lz77StepBtn.addEventListener('click', lz77StepNext);
+    }
+    if (lz77ResetBtn) {
+        lz77ResetBtn.addEventListener('click', resetLz77Animation);
+    }
+}
+
+function handleLz77FileSelect(file) {
+    if (!file) return;
+    
+    appState.lz77File = file;
+    document.getElementById('lz77FileName').textContent = file.name;
+    document.getElementById('lz77FileSize').textContent = API.formatFileSize(file.size);
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        appState.lz77OriginalText = e.target.result;
+        document.getElementById('lz77Workspace').classList.remove('hidden');
+        document.getElementById('lz77DropZone').classList.add('hidden');
+        document.getElementById('lz77ResultContainer').classList.add('hidden');
+        resetLz77Animation();
+        showNotification(`已載入檔案: ${file.name}`, 'success');
+    };
+    reader.readAsText(file);
+}
+
+function loadLz77Template(type) {
+    let content = "";
+    let filename = "";
+    
+    if (type === 'log') {
+        filename = "server_system_logs.log";
+        content = Array(15).fill(0).map((_, idx) => {
+            const time = `14:30:${idx.toString().padStart(2, '0')}`;
+            return `[2026-06-06 ${time}] INFO: Userallen connected to server. API Request: GET /api/lz77/status from IP: 192.168.1.105 (Status: 200 OK)\n`;
+        }).join("");
+    } else {
+        filename = "repetitive_records.json";
+        const baseObj = {
+            status: "active",
+            role: "editor",
+            project: "Data Compression Visualizer",
+            verified: true,
+            tags: ["LZ77", "Huffman", "LZH", "DEFLATE"]
+        };
+        const records = Array(10).fill(0).map((_, idx) => ({
+            id: 1000 + idx,
+            name: `User_${String.fromCharCode(65 + (idx % 3))}`,
+            ...baseObj
+        }));
+        content = JSON.stringify(records, null, 2);
+    }
+    
+    const file = new File([content], filename, { type: 'text/plain' });
+    handleLz77FileSelect(file);
+}
+
+function clearLz77Workspace() {
+    appState.lz77File = null;
+    appState.lz77OriginalText = "";
+    appState.lz77Result = null;
+    
+    document.getElementById('lz77FileInput').value = '';
+    document.getElementById('lz77Workspace').classList.add('hidden');
+    document.getElementById('lz77DropZone').classList.remove('hidden');
+    
+    const lz77ParamWarning = document.getElementById('lz77ParamWarning');
+    if (lz77ParamWarning) {
+        lz77ParamWarning.classList.add('hidden');
+    }
+    
+    resetLz77Animation();
+    showNotification('LZ77 工作區已重設', 'info');
+}
+
+async function handleLz77Compress() {
+    if (!appState.lz77File || !appState.lz77OriginalText) {
+        showNotification('請先上傳檔案', 'warning');
+        return;
+    }
+    
+    const lz77ParamWarning = document.getElementById('lz77ParamWarning');
+    if (lz77ParamWarning) {
+        lz77ParamWarning.classList.add('hidden');
+    }
+    
+    const compressBtn = document.getElementById('lz77CompressBtn');
+    const progressContainer = document.getElementById('lz77ProgressContainer');
+    const progressBar = document.getElementById('lz77ProgressBar');
+    const progressPercent = document.getElementById('lz77ProgressPercent');
+    const progressStatus = document.getElementById('lz77ProgressStatus');
+
+    compressBtn.disabled = true;
+    compressBtn.textContent = '📦 正在進行 LZ77 與 LZH 混合壓縮...';
+    
+    if (progressContainer) {
+        progressContainer.classList.remove('hidden');
+        progressBar.style.width = '0%';
+        progressPercent.textContent = '0%';
+        progressStatus.textContent = '正在準備上傳...';
+    }
+    
+    try {
+        const windowSize = document.getElementById('rngLz77WindowSize').value;
+        const lookaheadSize = document.getElementById('rngLz77LookaheadSize').value;
+        
+        // 呼叫 LZH API 獲取全部資訊 (附帶進度 callback)
+        const response = await API.compressLZH(appState.lz77File, windowSize, lookaheadSize, (progress) => {
+            if (progressBar && progressPercent && progressStatus) {
+                progressBar.style.width = progress + '%';
+                progressPercent.textContent = progress + '%';
+                if (progress >= 100) {
+                    progressStatus.textContent = '正在進行 LZH 聯動壓縮，請稍候...';
+                } else {
+                    progressStatus.textContent = `正在上傳檔案...`;
+                }
+            }
+        });
+        
+        if (response.success) {
+            if (progressBar && progressPercent && progressStatus) {
+                progressBar.style.width = '100%';
+                progressPercent.textContent = '100%';
+                progressStatus.textContent = '✅ 壓縮完成！';
+            }
+            
+            appState.lz77Result = response.data;
+            appState.lz77Steps = response.data.steps;
+            
+            // 載入 Visualizer 文字
+            if (appState.lz77Visualizer) {
+                appState.lz77Visualizer.setText(appState.lz77OriginalText);
+            }
+            
+            // 顯示結果
+            document.getElementById('lz77ResultContainer').classList.remove('hidden');
+            
+            // 填寫統計指標
+            const stats = response.data.stats;
+            document.getElementById('lz77OrigSizeText').textContent = API.formatFileSize(stats.original_size);
+            document.getElementById('lz77OnlySizeText').textContent = API.formatFileSize(stats.lz77_size);
+            document.getElementById('lzhSizeText').textContent = API.formatFileSize(stats.lzh_size);
+            document.getElementById('lzhSavingsText').textContent = `${stats.space_saving}%`;
+            
+            // 畫效能圖表
+            drawLz77CompareChart(stats);
+            
+            // 渲染 Token 日誌與霍夫曼碼表
+            renderLz77TokenLog(appState.lz77Steps);
+            renderLzhCodeTable(response.data.code_table);
+            
+            // 初始化動畫狀態
+            resetLz77Animation();
+            
+            showNotification('LZ77 & LZH 混合壓縮成功！', 'success');
+            
+            // 延遲隱藏進度條
+            setTimeout(() => {
+                if (progressContainer) progressContainer.classList.add('hidden');
+            }, 1000);
+        } else {
+            showNotification(`壓縮失敗: ${response.error}`, 'error');
+            if (progressContainer) progressContainer.classList.add('hidden');
+        }
+    } catch (e) {
+        showNotification(`發生錯誤: ${e.message}`, 'error');
+        console.error(e);
+        if (progressContainer) progressContainer.classList.add('hidden');
+    } finally {
+        compressBtn.disabled = false;
+        compressBtn.textContent = '🚀 開始 LZ77 與 LZH 混合壓縮';
+    }
+}
+
+function drawLz77CompareChart(stats) {
+    const ctx = document.getElementById('lz77CompareChart').getContext('2d');
+    
+    if (appState.lz77CompareChart) {
+        appState.lz77CompareChart.destroy();
+    }
+    
+    appState.lz77CompareChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['原始大小', 'LZ77 字典壓縮', 'LZH 聯動壓縮 (Deflate)'],
+            datasets: [{
+                label: '檔案大小 (Bytes)',
+                data: [stats.original_size, stats.lz77_size, stats.lzh_size],
+                backgroundColor: [
+                    'rgba(71, 85, 105, 0.6)', // slate-600
+                    'rgba(13, 148, 136, 0.6)', // teal-600
+                    'rgba(16, 185, 129, 0.6)'  // emerald-500
+                ],
+                borderColor: [
+                    'rgb(71, 85, 105)',
+                    'rgb(13, 148, 136)',
+                    'rgb(16, 185, 129)'
+                ],
+                borderWidth: 1.5,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y', // 橫向條形圖
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: {
+                    grid: { color: '#334155' },
+                    ticks: { color: '#cbd5e1' }
+                },
+                y: {
+                    grid: { display: false },
+                    ticks: { color: '#cbd5e1' }
+                }
+            }
+        }
+    });
+}
+
+function renderLz77TokenLog(steps) {
+    const container = document.getElementById('lz77TokenLog');
+    container.innerHTML = "";
+    
+    steps.forEach((step, idx) => {
+        const tok = step.token;
+        const div = document.createElement('div');
+        div.className = 'py-1 border-b border-slate-900 flex justify-between items-center hover:bg-slate-900/50 px-1.5 cursor-pointer';
+        div.id = `lz77-tok-item-${idx}`;
+        
+        let charDisp = tok.next_char;
+        if (charDisp === ' ') charDisp = '⎵ (空格)';
+        else if (charDisp === '\n') charDisp = '↵ (換行)';
+        else if (charDisp === '\t') charDisp = '⇥ (製表)';
+        else if (charDisp === '') charDisp = 'EOF';
+        
+        div.innerHTML = `
+            <span class="text-teal-400 font-bold">Step ${idx+1}:</span>
+            <span class="text-slate-300">Offset: ${tok.offset}, Len: ${tok.length}</span>
+            <span class="text-emerald-400 font-semibold">'${charDisp}'</span>
+        `;
+        
+        div.addEventListener('click', () => {
+            pauseLz77Animation();
+            showLz77Step(idx);
+        });
+        
+        container.appendChild(div);
+    });
+}
+
+function renderLzhCodeTable(codeTable) {
+    const grid = document.getElementById('lzhCodeTableGrid');
+    grid.innerHTML = "";
+    
+    // 按二進位編碼長度排序顯示
+    const sorted = Object.entries(codeTable).sort((a, b) => a[1].length - b[1].length);
+    
+    sorted.forEach(([hexVal, code]) => {
+        const item = document.createElement('div');
+        item.className = 'flex justify-between items-center p-1.5 bg-slate-900/60 rounded border border-slate-800 text-[10px]';
+        
+        // 解析 hex 字節，顯示對應字元 (如果是 ASCII 可讀)
+        const intVal = parseInt(hexVal, 16);
+        let charDisp = hexVal;
+        if (32 <= intVal && intVal <= 126) {
+            charDisp = `'${String.fromCharCode(intVal)}' (${hexVal})`;
+        }
+        
+        item.innerHTML = `
+            <span class="text-slate-400">${charDisp}</span>
+            <span class="text-green-400 font-bold font-mono">${code}</span>
+        `;
+        grid.appendChild(item);
+    });
+}
+
+async function downloadLz77File() {
+    if (!appState.lz77Result || !appState.lz77Result.filename) return;
+    const lz77Filename = appState.lz77Result.filename.replace('.lzh', '.lz77');
+    try {
+        const blob = await API.downloadLz77File(lz77Filename);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = lz77Filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showNotification('下載 LZ77 壓縮檔案成功', 'success');
+    } catch (e) {
+        showNotification(`下載失敗: ${e.message}`, 'error');
+    }
+}
+
+async function downloadLzhFile() {
+    if (!appState.lz77Result || !appState.lz77Result.filename) return;
+    // 將 .lz77 副檔名換成 .lzh
+    const lzhFilename = appState.lz77Result.filename.replace('.lz77', '.lzh');
+    try {
+        const blob = await API.downloadLzhFile(lzhFilename);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = lzhFilename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showNotification('下載 LZH 聯動壓縮檔案成功', 'success');
+    } catch (e) {
+        showNotification(`下載失敗: ${e.message}`, 'error');
+    }
+}
+
+// ============= LZ77 動畫控制邏輯 =============
+
+function showLz77Step(idx) {
+    if (!appState.lz77Steps || idx < 0 || idx >= appState.lz77Steps.length) return;
+    
+    appState.lz77CurrentStep = idx;
+    const step = appState.lz77Steps[idx];
+    
+    // 呼叫畫布視覺化繪製
+    if (appState.lz77Visualizer) {
+        appState.lz77Visualizer.draw(step);
+    }
+    
+    // 更新步驟日誌的高亮
+    document.querySelectorAll('[id^="lz77-tok-item-"]').forEach((item, index) => {
+        if (index === idx) {
+            item.classList.add('bg-teal-950', 'border-teal-700');
+            item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else {
+            item.classList.remove('bg-teal-950', 'border-teal-700');
+        }
+    });
+    
+    // 更新解說文字
+    const tok = step.token;
+    let charDisp = tok.next_char;
+    if (charDisp === ' ') charDisp = '⎵ (空格)';
+    else if (charDisp === '\n') charDisp = '↵ (換行)';
+    else if (charDisp === '\t') charDisp = '⇥ (製表)';
+    else if (charDisp === '') charDisp = 'EOF (結束)';
+    
+    let explanationText = "";
+    if (tok.length > 0) {
+        explanationText = `從位置 ${step.index} 出發，往前尋找到匹配長度 ${tok.length} 字元（往前偏移 Offset 為 ${tok.offset} 字元，即 '${step.match_string}'）；下一個新讀入的字元為 '${charDisp}'。`;
+    } else {
+        explanationText = `位置 ${step.index} 處未找到匹配，輸出字元本身：'${charDisp}'。`;
+    }
+    
+    document.getElementById('lz77StepExplanation').textContent = `[Step ${idx+1}/${appState.lz77Steps.length}] ${explanationText}`;
+}
+
+function lz77StepNext() {
+    if (!appState.lz77Steps) return;
+    
+    if (appState.lz77CurrentStep >= appState.lz77Steps.length - 1) {
+        pauseLz77Animation();
+        showNotification('動畫播放完成！', 'info');
+        return;
+    }
+    
+    showLz77Step(appState.lz77CurrentStep + 1);
+}
+
+function toggleLz77Play() {
+    if (!appState.lz77Steps) return;
+    
+    const playBtn = document.getElementById('lz77PlayBtn');
+    
+    if (appState.lz77Playing) {
+        pauseLz77Animation();
+    } else {
+        appState.lz77Playing = true;
+        playBtn.textContent = '⏸️ 暫停';
+        runLz77Autoplay();
+    }
+}
+
+function pauseLz77Animation() {
+    appState.lz77Playing = false;
+    const playBtn = document.getElementById('lz77PlayBtn');
+    if (playBtn) playBtn.textContent = '▶️ 繼續';
+    
+    if (appState.lz77Timer) {
+        clearTimeout(appState.lz77Timer);
+        appState.lz77Timer = null;
+    }
+}
+
+function resetLz77Animation() {
+    pauseLz77Animation();
+    appState.lz77CurrentStep = 0;
+    
+    const playBtn = document.getElementById('lz77PlayBtn');
+    if (playBtn) playBtn.textContent = '▶️ 播放';
+    
+    if (appState.lz77Steps && appState.lz77Steps.length > 0) {
+        showLz77Step(0);
+    } else {
+        if (appState.lz77Visualizer) {
+            appState.lz77Visualizer.clear();
+        }
+        const exp = document.getElementById('lz77StepExplanation');
+        if (exp) exp.textContent = "等待播放...";
+        const log = document.getElementById('lz77TokenLog');
+        if (log) log.innerHTML = "";
+        const grid = document.getElementById('lzhCodeTableGrid');
+        if (grid) grid.innerHTML = "";
+    }
+}
+
+function runLz77Autoplay() {
+    if (!appState.lz77Playing || !appState.lz77Steps) return;
+    
+    if (appState.lz77CurrentStep >= appState.lz77Steps.length - 1) {
+        pauseLz77Animation();
+        showNotification('動畫播放完成！', 'info');
+        return;
+    }
+    
+    lz77StepNext();
+    
+    // 讀取速度滑桿數值，計算延遲時間（基準延遲為 800ms）
+    const speedInput = document.getElementById('lz77AnimationSpeed');
+    const speed = speedInput ? parseFloat(speedInput.value) : 1;
+    const delay = Math.round(800 / speed);
+    
+    appState.lz77Timer = setTimeout(runLz77Autoplay, delay);
+}

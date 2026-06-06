@@ -3,7 +3,7 @@
  */
 
 const API_BASE_URL = 'http://localhost:8000/api';
-const API_TIMEOUT = 30000; // 30 秒超時
+const API_TIMEOUT = 120000; // 120 秒超時
 
 /**
  * API 回應包裝類
@@ -264,6 +264,148 @@ function getImageJpgDownloadUrl(filename, quality, mode) {
     return `${API_BASE_URL}/image/download-jpg?filename=${encodeURIComponent(filename)}&quality=${quality}&mode=${encodeURIComponent(mode)}`;
 }
 
+/**
+ * LZ77 壓縮
+ * @param {File} file
+ * @param {number} windowSize
+ * @param {number} lookaheadSize
+ * @returns {Promise<APIResponse>}
+ */
+async function compressLZ77(file, windowSize, lookaheadSize) {
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('window_size', windowSize);
+        formData.append('lookahead_size', lookaheadSize);
+
+        const response = await fetch(`${API_BASE_URL}/lz77/compress`, {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+        if (response.ok && data.success) {
+            return new APIResponse(true, data);
+        } else {
+            return new APIResponse(false, null, data.detail || 'LZ77 壓縮失敗');
+        }
+    } catch (error) {
+        return new APIResponse(false, null, error.message);
+    }
+}
+
+/**
+ * LZH 混合壓縮
+ * @param {File} file
+ * @param {number} windowSize
+ * @param {number} lookaheadSize
+ * @param {Function} onProgress - 進度回調
+ * @returns {Promise<APIResponse>}
+ */
+async function compressLZH(file, windowSize, lookaheadSize, onProgress = null) {
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('window_size', windowSize);
+        formData.append('lookahead_size', lookaheadSize);
+
+        const xhr = new XMLHttpRequest();
+
+        return new Promise((resolve, reject) => {
+            // 監聽上傳進度
+            if (onProgress) {
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percentComplete = Math.round((e.loaded / e.total) * 100);
+                        onProgress(percentComplete);
+                    }
+                });
+            }
+
+            // 監聽完成
+            xhr.addEventListener('load', () => {
+                if (xhr.status === 200) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        if (data.success) {
+                            resolve(new APIResponse(true, data));
+                        } else {
+                            resolve(new APIResponse(false, null, data.message));
+                        }
+                    } catch (e) {
+                        reject(new Error('解析回應失敗: ' + e.message));
+                    }
+                } else {
+                    try {
+                        const error = JSON.parse(xhr.responseText);
+                        resolve(new APIResponse(false, null, error.detail || 'LZH 混合壓縮失敗'));
+                    } catch (e) {
+                        resolve(new APIResponse(false, null, `HTTP ${xhr.status}`));
+                    }
+                }
+            });
+
+            // 監聽錯誤
+            xhr.addEventListener('error', () => {
+                reject(new Error('網路錯誤'));
+            });
+
+            xhr.addEventListener('abort', () => {
+                reject(new Error('請求被中止'));
+            });
+
+            // 設置超時
+            xhr.timeout = API_TIMEOUT;
+            xhr.addEventListener('timeout', () => {
+                reject(new Error('請求超時'));
+            });
+
+            // 發送請求
+            xhr.open('POST', `${API_BASE_URL}/lzh/compress`);
+            xhr.send(formData);
+        });
+
+    } catch (error) {
+        return new APIResponse(false, null, error.message);
+    }
+}
+
+/**
+ * 下載 LZ77 壓縮檔案
+ * @param {string} filename
+ * @returns {Promise<Blob>}
+ */
+async function downloadLz77File(filename) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/download-lz77/${filename}`);
+        if (response.ok) {
+            return await response.blob();
+        } else {
+            throw new Error(`HTTP ${response.status}`);
+        }
+    } catch (error) {
+        throw new Error('下載失敗: ' + error.message);
+    }
+}
+
+/**
+ * 下載 LZH 壓縮檔案
+ * @param {string} filename
+ * @returns {Promise<Blob>}
+ */
+async function downloadLzhFile(filename) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/download-lzh/${filename}`);
+        if (response.ok) {
+            return await response.blob();
+        } else {
+            throw new Error(`HTTP ${response.status}`);
+        }
+    } catch (error) {
+        throw new Error('下載失敗: ' + error.message);
+    }
+}
+
 // 導出為全局變數
 window.API = {
     checkAPIConnection,
@@ -275,5 +417,9 @@ window.API = {
     formatBits,
     compressImage,
     getBlockDetail,
-    getImageJpgDownloadUrl
+    getImageJpgDownloadUrl,
+    compressLZ77,
+    compressLZH,
+    downloadLz77File,
+    downloadLzhFile
 };

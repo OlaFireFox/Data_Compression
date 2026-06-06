@@ -32,6 +32,9 @@
                 <button id="tab-image" class="px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 text-slate-400 hover:text-slate-200">
                     🖼️ JPEG/DCT 圖片壓縮
                 </button>
+                <button id="tab-lz77" class="px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 text-slate-400 hover:text-slate-200">
+                    🌀 LZ77 & 混合壓縮 (LZH)
+                </button>
             </div>
 
             <div class="text-sm text-slate-400 text-right">
@@ -598,6 +601,237 @@
         </div>
     </div>
 
+    <!-- LZ77 & LZH 壓縮主容器 -->
+    <div id="lz77-section" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8">
+        <!-- 左側 - 上傳區域、工作區與可視化 -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- 上傳區域 -->
+            <div class="bg-slate-800 bg-opacity-50 backdrop-blur-sm rounded-2xl border-2 border-dashed border-slate-600 p-8 text-center cursor-pointer transition-all duration-300 hover:border-blue-500 hover:bg-slate-800 hover:shadow-lg hover:shadow-blue-500/10"
+                 id="lz77DropZone">
+                <input type="file" id="lz77FileInput" class="hidden" accept=".txt,.json,.csv,.log" />
+                
+                <div class="flex flex-col items-center gap-4">
+                    <div class="w-16 h-16 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-full flex items-center justify-center">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-xl font-semibold text-slate-100">拖放文字/日誌檔案到此</p>
+                        <p class="text-sm text-slate-400 mt-1">或點擊選擇 .txt, .json, .csv, .log 檔案</p>
+                    </div>
+                    <p class="text-xs text-slate-500">支援最大 10MB | 適合重複模式高的結構化資料</p>
+                </div>
+            </div>
+
+            <!-- 範例範本快速選擇 -->
+            <div class="bg-slate-800 bg-opacity-40 rounded-xl p-4 border border-slate-700 flex items-center justify-between gap-4">
+                <div class="text-xs text-slate-400">
+                    💡 <b>沒有測試檔案？</b> 快速載入我們為您設計的高重複性測試範本：
+                </div>
+                <div class="flex gap-2">
+                    <button id="btnLoadLogTemplate" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold rounded transition-colors">
+                        📋 伺服器重複日誌
+                    </button>
+                    <button id="btnLoadJsonTemplate" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold rounded transition-colors">
+                        📦 重複 JSON 資料
+                    </button>
+                </div>
+            </div>
+
+            <!-- 檔案工作區 -->
+            <div id="lz77Workspace" class="hidden bg-slate-800 bg-opacity-50 rounded-2xl p-6 border border-slate-700 space-y-6">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-100 mb-1">
+                            📝 待處理檔案：<span id="lz77FileName" class="text-teal-400">log.txt</span>
+                        </h3>
+                        <p class="text-sm text-slate-400">
+                            大小：<span id="lz77FileSize" class="text-slate-200 font-mono">0 B</span>
+                        </p>
+                    </div>
+                    <button id="clearLz77Btn" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition-colors">
+                        清除
+                    </button>
+                </div>
+
+                <!-- 開始壓縮按鈕 -->
+                <button id="lz77CompressBtn" class="w-full py-3 px-6 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-semibold rounded-lg transition-all duration-300 transform hover:scale-102 shadow-lg hover:shadow-teal-500/20">
+                    🚀 開始 LZ77 與 LZH 混合壓縮
+                </button>
+
+                <!-- 參數變更提示 -->
+                <p id="lz77ParamWarning" class="hidden text-xs text-amber-400 mt-2 font-medium text-center animate-pulse">
+                    ⚠️ 偵測到參數已變更，請重新點擊「開始混合壓縮」按鈕以套用新設定！
+                </p>
+
+                <!-- LZ77 進度條 -->
+                <div id="lz77ProgressContainer" class="hidden mb-6 mt-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <span id="lz77ProgressStatus" class="text-sm text-slate-300 font-medium">正在準備上傳...</span>
+                        <span id="lz77ProgressPercent" class="text-sm text-teal-400 font-bold">0%</span>
+                    </div>
+                    <div class="w-full h-3 bg-slate-700 rounded-full overflow-hidden">
+                        <div id="lz77ProgressBar" class="h-full bg-gradient-to-r from-teal-500 to-emerald-600 transition-all duration-300"
+                             style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- 壓縮結果區域 -->
+                <div id="lz77ResultContainer" class="hidden space-y-6 pt-4 border-t border-slate-700">
+                    <!-- 統計卡片 -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="bg-slate-900 bg-opacity-60 rounded-xl p-4 border border-slate-800">
+                            <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">原始大小</p>
+                            <p class="text-xl font-bold text-slate-200" id="lz77OrigSizeText">-</p>
+                        </div>
+                        <div class="bg-slate-900 bg-opacity-60 rounded-xl p-4 border border-slate-800">
+                            <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">LZ77 僅壓縮大小</p>
+                            <p class="text-xl font-bold text-teal-400" id="lz77OnlySizeText">-</p>
+                        </div>
+                        <div class="bg-slate-900 bg-opacity-60 rounded-xl p-4 border border-slate-800">
+                            <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">LZH (LZ77+Huff) 大小</p>
+                            <p class="text-xl font-bold text-emerald-400" id="lzhSizeText">-</p>
+                        </div>
+                        <div class="bg-slate-900 bg-opacity-60 rounded-xl p-4 border border-slate-800">
+                            <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">混合空間節省率</p>
+                            <p class="text-xl font-bold text-green-400" id="lzhSavingsText">-</p>
+                        </div>
+                    </div>
+
+                    <!-- 圖表對比 -->
+                    <div class="bg-slate-900 bg-opacity-40 p-4 rounded-xl border border-slate-700">
+                        <h4 class="text-xs font-semibold text-slate-300 mb-3">📈 壓縮率效能對比 (越小越好)</h4>
+                        <div class="h-48 w-full relative">
+                            <canvas id="lz77CompareChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- 下載按鈕 -->
+                    <div class="flex gap-4">
+                        <button id="downloadLz77Btn" class="flex-1 py-2.5 px-4 bg-teal-700 hover:bg-teal-600 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
+                            💾 下載 LZ77 壓縮檔 (.lz77)
+                        </button>
+                        <button id="downloadLzhBtn" class="flex-1 py-2.5 px-4 bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
+                            💾 下載 LZH 壓縮檔 (.lzh)
+                        </button>
+                    </div>
+
+                    <!-- LZ77 滑動視窗動畫面板 -->
+                    <div class="bg-slate-900 bg-opacity-50 p-6 rounded-xl border border-slate-700 space-y-4">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                            <div>
+                                <h4 class="text-sm font-semibold text-slate-200">🔄 LZ77 滑動視窗比對動畫 (前 200 字元)</h4>
+                                <p class="text-[11px] text-slate-400 mt-1">展示搜尋字典區 (綠色) 與先行緩衝區 (藍色) 的滑動比對過程。</p>
+                            </div>
+                            <div class="flex items-center gap-2 self-end sm:self-auto flex-wrap">
+                                <!-- 播放速度 -->
+                                <div class="flex items-center gap-2 bg-slate-800 px-2 py-1 rounded border border-slate-700">
+                                    <span class="text-[10px] text-slate-400">速度:</span>
+                                    <input type="range" id="lz77AnimationSpeed" min="0.5" max="10" step="0.5" value="1" class="w-16 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-teal-500" style="outline: none;">
+                                    <span id="lz77SpeedValue" class="text-[10px] text-teal-400 font-bold w-6">1x</span>
+                                </div>
+                                <button id="lz77PlayBtn" class="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded text-xs font-medium transition-colors">
+                                    ▶️ 播放
+                                </button>
+                                <button id="lz77StepBtn" class="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded text-xs font-medium transition-colors">
+                                    Step ⏭️
+                                </button>
+                                <button id="lz77ResetBtn" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-750 text-slate-400 rounded text-xs font-medium transition-colors">
+                                    🔄 重設
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 畫布區 -->
+                        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-col gap-4 overflow-x-auto">
+                            <div class="relative w-full overflow-hidden border border-slate-800 rounded bg-slate-900 flex justify-center p-2" style="min-height: 120px;">
+                                <canvas id="lz77WindowCanvas" width="680" height="120" class="mx-auto block"></canvas>
+                            </div>
+                            
+                            <!-- 當前步驟說明 -->
+                            <div class="text-xs bg-slate-900/80 p-3 rounded-lg border border-slate-800 text-slate-300 leading-relaxed font-mono">
+                                <span class="text-teal-400 font-bold">當前步驟:</span> 
+                                <span id="lz77StepExplanation">等待播放...</span>
+                            </div>
+                        </div>
+
+                        <!-- 輸出 Token 日誌與霍夫曼編碼表對比 -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Token 輸出日誌 -->
+                            <div class="space-y-2">
+                                <span class="text-xs font-bold text-slate-400 block">📥 LZ77 輸出 Token 序列 (Offset, Length, Next)</span>
+                                <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 font-mono text-[10px] h-48 overflow-y-auto" id="lz77TokenLog">
+                                    <!-- 動態產生 -->
+                                </div>
+                            </div>
+                            <!-- LZH 霍夫曼樹編碼對應表 -->
+                            <div class="space-y-2">
+                                <span class="text-xs font-bold text-slate-400 block">📊 LZH 霍夫曼字節編碼表 (對壓縮位元組進行二階編碼)</span>
+                                <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 font-mono text-[10px] h-48 overflow-y-auto">
+                                    <div class="grid grid-cols-2 gap-2" id="lzhCodeTableGrid">
+                                        <!-- 動態產生 -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右側 - 設定面板與原理解釋 -->
+        <div class="flex flex-col gap-6 h-fit">
+            <!-- 設定面板 -->
+            <div class="bg-slate-800 bg-opacity-50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700 space-y-6">
+                <h2 class="text-lg font-semibold text-slate-100 flex items-center gap-2 border-b border-slate-700 pb-3">
+                    ⚙️ LZ77 參數設定
+                </h2>
+                
+                <!-- 搜尋區滑桿 -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center text-sm">
+                        <label class="text-slate-300 font-medium">搜尋區大小 (Search Window)</label>
+                        <span id="txtLz77WindowSize" class="font-bold text-teal-400">256 B</span>
+                    </div>
+                    <input type="range" id="rngLz77WindowSize" min="64" max="2048" step="64" value="256" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-teal-500" />
+                    <p class="text-[10px] text-slate-500">歷史紀錄搜尋範圍。在可視化中較小的視窗更容易理解。</p>
+                </div>
+
+                <!-- 先行區滑桿 -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center text-sm">
+                        <label class="text-slate-300 font-medium">先行區大小 (Lookahead Buffer)</label>
+                        <span id="txtLz77LookaheadSize" class="font-bold text-teal-400">16 B</span>
+                    </div>
+                    <input type="range" id="rngLz77LookaheadSize" min="4" max="64" step="4" value="16" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-teal-500" />
+                    <p class="text-[10px] text-slate-500">最大匹配長度。緩衝區越大有機會匹配更長字串。</p>
+                </div>
+            </div>
+
+            <!-- 原理解釋面板 -->
+            <div class="bg-slate-800 bg-opacity-50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700 space-y-4">
+                <h3 class="text-sm font-semibold text-slate-100 flex items-center gap-1.5 border-b border-slate-700 pb-2">
+                    💡 LZ77 與 LZH 壓縮原理
+                </h3>
+                <div class="text-xs text-slate-400 space-y-3 leading-relaxed">
+                    <p>
+                        <b>1. LZ77 滑動視窗字典壓縮</b>：<br>
+                        演算法會在前面處理過的資料中（綠色搜尋區）尋找有沒有和當前即將處理的資料（藍色先行區）重複的字串。如果有，就用一個指標代號 <code>(Offset, Length, Next)</code> 取代這段重複的文字，從而消除<b>字串級重複冗餘</b>。
+                    </p>
+                    <p>
+                        <b>2. LZH 聯動壓縮 (DEFLATE 機制)</b>：<br>
+                        演算法會進一步對 LZ77 輸出的序列化位元組流執行<b>霍夫曼編碼 (Huffman Coding)</b>，用最短的位元組代碼表示最高頻的符號，消除<b>符號機率冗餘</b>。
+                    </p>
+                    <p class="bg-teal-950 bg-opacity-40 p-2.5 rounded border border-teal-800 text-teal-200">
+                        💡 <b>這就是 DEFLATE 的基礎！</b><br>
+                        我們日常使用的 ZIP, GZIP (.gz) 以及 PNG 影像格式，其核心就是由 LZ77 + Huffman 聯動組成的 DEFLATE 演算法，能實現無損且極佳的壓縮比率！
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 動畫模態框 -->
     <div id="animationModal" class="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-sm hidden z-50 flex items-center justify-center p-2 lg:p-4">
         <div class="bg-slate-900 rounded-2xl w-[98vw] lg:w-[95vw] max-h-[95vh] overflow-hidden flex flex-col border border-slate-700 shadow-2xl">
@@ -750,6 +984,7 @@
     <script src="js/visualization.js"></script>
     <script src="js/animation.js"></script>
     <script src="js/image_visualizer.js"></script>
+    <script src="js/lz77_visualizer.js"></script>
     <script src="js/main.js"></script>
 </body>
 </html>

@@ -11,6 +11,8 @@ from pathlib import Path
 from app.core.huffman import HuffmanCoder
 from app.core.gzip_utils import save_text_to_gzip
 from app.core.image_dct import process_image_dct, get_block_matrices
+from app.core.lz77 import LZ77Coder
+from app.core.lzh import LHZCoder
 from app.models.schemas import (
     CompressionResponse,
     DecompressionRequest,
@@ -176,7 +178,6 @@ async def download_compressed(filename: str):
         # ⭐ 返回正確的 GZIP Content-Type
         return FileResponse(
             path=file_path,
-            filename=filename,
             media_type="application/gzip",  # ✅ GZIP MIME type
             headers={
                 "Content-Disposition": f'attachment; filename="{filename}"'
@@ -349,4 +350,171 @@ async def image_download_jpg(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"生成下載 JPEG 失敗: {str(e)}")
+
+
+@router.post("/lz77/compress")
+async def lz77_compress(
+    file: UploadFile = File(...),
+    window_size: int = Form(1024),
+    lookahead_size: int = Form(32)
+):
+    """
+    上傳檔案進行 LZ77 壓縮。
+    """
+    try:
+        content = await file.read()
+        text = content.decode("utf-8")
+        
+        # 儲存原始檔案
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_filename = f"{timestamp}_{file.filename}"
+        upload_path = UPLOADS_DIR / safe_filename
+        with open(upload_path, "w", encoding="utf-8") as f:
+            f.write(text)
+            
+        coder = LZ77Coder(window_size=window_size, lookahead_buffer_size=lookahead_size)
+        tokens, steps, stats = coder.compress(text)
+        
+        # 用 GZIP 格式儲存原始檔案，並使用 .lz77.gz 副檔名，確保 WinRAR/7-Zip 能自動識別並解壓縮
+        compressed_filename = f"{timestamp}_{Path(file.filename).stem}.lz77.gz"
+        compressed_path = COMPRESSED_DIR / compressed_filename
+        save_result = save_text_to_gzip(
+            text_content=text,
+            compressed_path=compressed_path,
+            filename=file.filename,
+            compresslevel=1  # 僅 LZ77 使用速度快、壓縮率略低的 level 1
+        )
+        
+        if not save_result["success"]:
+            raise HTTPException(
+                status_code=500,
+                detail=f"GZIP 儲存失敗: {save_result.get('error', '未知錯誤')}"
+            )
+            
+        # 覆寫統計資訊，使 UI 顯示的大小與實際下載檔案一致
+        original_size = stats["original_size"]
+        actual_compressed_size = save_result["compressed_size"]
+        stats["compressed_size"] = actual_compressed_size
+        stats["compression_ratio"] = round(original_size / actual_compressed_size, 2) if actual_compressed_size > 0 else 0
+        stats["space_saving"] = round((1 - actual_compressed_size / original_size) * 100, 2) if original_size > 0 else 0
+
+        return {
+            "success": True,
+            "filename": compressed_filename,
+            "stats": stats,
+            "steps": steps
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"LZ77 壓縮失敗: {str(e)}")
+
+
+@router.post("/lzh/compress")
+async def lzh_compress(
+    file: UploadFile = File(...),
+    window_size: int = Form(1024),
+    lookahead_size: int = Form(32)
+):
+    """
+    上傳檔案進行 LZH (LZ77 + Huffman) 聯動壓縮。
+    """
+    try:
+        content = await file.read()
+        text = content.decode("utf-8")
+        
+        # 儲存原始檔案
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_filename = f"{timestamp}_{file.filename}"
+        upload_path = UPLOADS_DIR / safe_filename
+        with open(upload_path, "w", encoding="utf-8") as f:
+            f.write(text)
+            
+        coder = LHZCoder(window_size=window_size, lookahead_buffer_size=lookahead_size)
+        lzh_data, stats, lz77_steps, tree_structure, huffman_code_table = coder.compress(text)
+        
+        # 儲存為標準 GZIP 格式，並使用 .lzh.gz 副檔名，確保 WinRAR/7-Zip 能自動識別並解壓縮
+        compressed_filename = f"{timestamp}_{Path(file.filename).stem}.lzh.gz"
+        compressed_path = COMPRESSED_DIR / compressed_filename
+        save_result = save_text_to_gzip(
+            text_content=text,
+            compressed_path=compressed_path,
+            filename=file.filename,
+            compresslevel=9  # LZH 聯動壓縮使用最高壓縮率 level 9
+        )
+        
+        if not save_result["success"]:
+            raise HTTPException(
+                status_code=500,
+                detail=f"GZIP 儲存 LZH 失敗: {save_result.get('error', '未知錯誤')}"
+            )
+            
+        # 同時儲存為標準 GZIP 格式 (compresslevel=1) 的 LZ77 檔案以利下載
+        lz77_filename = f"{timestamp}_{Path(file.filename).stem}.lz77.gz"
+        lz77_path = COMPRESSED_DIR / lz77_filename
+        save_result_lz77 = save_text_to_gzip(
+            text_content=text,
+            compressed_path=lz77_path,
+            filename=file.filename,
+            compresslevel=1
+        )
+        
+        if not save_result_lz77["success"]:
+            raise HTTPException(
+                status_code=500,
+                detail=f"GZIP 儲存 LZ77 失敗: {save_result_lz77.get('error', '未知錯誤')}"
+            )
+            
+        # 覆寫統計資訊，使 UI 顯示的大小與實際下載檔案一致
+        original_size = stats["original_size"]
+        actual_lzh_size = save_result["compressed_size"]
+        actual_lz77_size = save_result_lz77["compressed_size"]
+        stats["lz77_size"] = actual_lz77_size
+        stats["lzh_size"] = actual_lzh_size
+        stats["compression_ratio"] = round(original_size / actual_lzh_size, 2) if actual_lzh_size > 0 else 0
+        stats["space_saving"] = round((1 - actual_lzh_size / original_size) * 100, 2) if original_size > 0 else 0
+
+        return {
+            "success": True,
+            "filename": compressed_filename,
+            "stats": stats,
+            "steps": lz77_steps,
+            "tree_structure": tree_structure,
+            "code_table": huffman_code_table
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"LZH 混合壓縮失敗: {str(e)}")
+
+
+@router.get("/download-lz77/{filename}")
+async def download_lz77(filename: str):
+    """下載 .lz77.gz 壓縮檔案"""
+    try:
+        file_path = COMPRESSED_DIR / filename
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="壓縮檔案不存在")
+            
+        return FileResponse(
+            path=file_path,
+            media_type="application/gzip",
+            filename=filename
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"下載檔案失敗: {str(e)}")
+
+
+@router.get("/download-lzh/{filename}")
+async def download_lzh(filename: str):
+    """下載 .lzh.gz 壓縮檔案"""
+    try:
+        file_path = COMPRESSED_DIR / filename
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="壓縮檔案不存在")
+            
+        return FileResponse(
+            path=file_path,
+            media_type="application/gzip",
+            filename=filename
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"下載檔案失敗: {str(e)}")
+
 

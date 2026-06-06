@@ -11,7 +11,8 @@ from typing import Tuple
 def save_text_to_gzip(
     text_content: str,
     compressed_path,
-    filename: str = "result.txt"
+    filename: str = "result.txt",
+    compresslevel: int = 9
 ) -> dict:
     """
     將文本內容直接保存為 GZIP 格式檔案。
@@ -72,7 +73,8 @@ def save_text_to_gzip(
             fileobj=buf,
             mode="wb",
             filename=filename,
-            mtime=0  # 固定時間戳便於測試
+            mtime=0,  # 固定時間戳便於測試
+            compresslevel=compresslevel
         ) as gz:
             bytes_written = gz.write(text_bytes)
             print(f"  📝 寫入字節: {bytes_written} 字節")

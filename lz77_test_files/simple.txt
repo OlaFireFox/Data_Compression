@@ -1,0 +1,4 @@
+Data compression is the process of modifying, encoding or converting the bits structure of data in such a way that it consumes less space on computer storage or transmission networks.
+LZ77 is a dictionary-based lossless data compression algorithm published by Lempel and Ziv in 1977.
+It achieves compression by replacing repeated occurrences of data with references to a single copy of that data existing earlier in the uncompressed data stream (the sliding window).
+This is a simple text file used to test the basic functionality of the LZ77 visualization system.

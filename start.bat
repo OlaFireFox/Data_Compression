@@ -23,14 +23,18 @@ echo 🚀 正在啟動服務...
 echo.
 
 REM 檢查 Python 是否安裝並設定指令
-set "PYTHON_CMD=python"
-if exist ".venv\Scripts\python.exe" (
-    set "PYTHON_CMD=.venv\Scripts\python.exe"
-    echo 💡 檢測到虛擬環境，將優先使用虛擬環境的 Python
+set "PYTHON_SYSTEM="
+py --version >nul 2>&1
+if not errorlevel 1 (
+    set "PYTHON_SYSTEM=py"
+) else (
+    python --version >nul 2>&1
+    if not errorlevel 1 (
+        set "PYTHON_SYSTEM=python"
+    )
 )
 
-%PYTHON_CMD% --version >nul 2>&1
-if errorlevel 1 (
+if "%PYTHON_SYSTEM%"=="" (
     echo ❌ 錯誤: 找不到 Python
     echo.
     echo 請確保:
@@ -42,6 +46,35 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
+
+REM 檢查或自動建立虛擬環境
+if not exist ".venv\Scripts\python.exe" (
+    echo ⚠️ 未檢測到虛擬環境 .venv，正在自動為您建立...
+    if "%PYTHON_SYSTEM%"=="py" (
+        py -m venv .venv
+    ) else (
+        python -m venv .venv
+    )
+    
+    if errorlevel 1 (
+        echo ❌ 錯誤: 無法建立虛擬環境 .venv
+        pause
+        exit /b 1
+    )
+    
+    echo ✅ 虛擬環境建立成功！正在安裝後端依賴套件...
+    .venv\Scripts\python.exe -m pip install --upgrade pip
+    .venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+    if errorlevel 1 (
+        echo ❌ 錯誤: 依賴套件安裝失敗
+        pause
+        exit /b 1
+    )
+    echo ✅ 所有依賴套件安裝完成！
+)
+
+set "PYTHON_CMD=.venv\Scripts\python.exe"
+echo 💡 使用虛擬環境的 Python 執行服務
 
 REM 檢查 start.py 是否存在
 if not exist "start.py" (

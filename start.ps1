@@ -1,46 +1,67 @@
-# 統一啟動腳本 - PowerShell 版本
-# 使用方法: Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process; .\start.ps1
-
+# Huffman Compression Visualization - Startup Script (PowerShell)
 param(
     [switch]$NoWait = $false
 )
 
-# 設定標題
-$host.UI.RawUI.WindowTitle = "Huffman 壓縮可視化 - 服務啟動"
+# Set window title
+$host.UI.RawUI.WindowTitle = "Huffman Compression - Startup"
 
-# 清屏
 Clear-Host
 
-Write-Host "`n" -ForegroundColor Green
-Write-Host "╔══════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║   Huffman 壓縮可視化 - 統一啟動服務 (PowerShell)            ║" -ForegroundColor Cyan
-Write-Host "╚══════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
-Write-Host "`n" -ForegroundColor Green
+Write-Host "`n"
+Write-Host "==========================================================" -ForegroundColor Cyan
+Write-Host "   Huffman Compression Visualization - Startup Service    " -ForegroundColor Cyan
+Write-Host "==========================================================" -ForegroundColor Cyan
+Write-Host "`n"
 
-# 獲取腳本所在目錄
-$scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
-Set-Location $scriptPath
+# Check Python environment
+Write-Host "Checking Python environment..." -ForegroundColor Yellow
 
-# 檢查 Python
-Write-Host "🔍 檢查環境..." -ForegroundColor Yellow
-
-$pythonCmd = "python"
-if (Test-Path ".\.venv\Scripts\python.exe") {
-    $pythonCmd = ".\.venv\Scripts\python.exe"
-    Write-Host "💡 檢測到虛擬環境，將優先使用虛擬環境的 Python" -ForegroundColor Cyan
+$pythonSystem = $null
+if (Get-Command "py" -ErrorAction SilentlyContinue) {
+    $pythonSystem = "py"
+} elseif (Get-Command "python" -ErrorAction SilentlyContinue) {
+    $pythonSystem = "python"
 }
 
-$pythonTest = & $pythonCmd --version 2>$null
-if (-not $?) {
-    Write-Host "❌ 錯誤: 找不到 Python" -ForegroundColor Red
-    Write-Host "`n請確保 Python 已安裝並添加到 PATH`n" -ForegroundColor Yellow
-    Read-Host "按 Enter 退出"
+if ($null -eq $pythonSystem) {
+    Write-Host "[ERROR] Python or py launcher not found!" -ForegroundColor Red
+    Write-Host "Please ensure Python is installed and added to PATH.`n" -ForegroundColor Yellow
+    Read-Host "Press Enter to exit"
     exit 1
 }
 
-Write-Host "✅ Python 運行環境: $pythonTest" -ForegroundColor Green
+# Check or auto-create virtual environment (.venv)
+if (-not (Test-Path ".\.venv\Scripts\python.exe")) {
+    Write-Host "Virtual environment (.venv) not found. Creating it now..." -ForegroundColor Yellow
+    if ($pythonSystem -eq "py") {
+        & py -m venv .venv
+    } else {
+        & python -m venv .venv
+    }
+    
+    if (-not $?) {
+        Write-Host "[ERROR] Failed to create virtual environment (.venv)!" -ForegroundColor Red
+        Read-Host "Press Enter to exit"
+        exit 1
+    }
+    
+    Write-Host "Virtual environment created successfully. Installing dependencies..." -ForegroundColor Green
+    & .\.venv\Scripts\python.exe -m pip install --upgrade pip
+    & .\.venv\Scripts\python.exe -m pip install -r backend/requirements.txt
+    if (-not $?) {
+        Write-Host "[ERROR] Failed to install dependencies!" -ForegroundColor Red
+        Read-Host "Press Enter to exit"
+        exit 1
+    }
+    Write-Host "All dependencies installed successfully!" -ForegroundColor Green
+}
 
-# 檢查檔案
+$pythonCmd = ".\.venv\Scripts\python.exe"
+$pythonTest = & $pythonCmd --version
+Write-Host "Using virtual environment: .venv ($pythonTest)" -ForegroundColor Cyan
+
+# Check files
 $files = @(
     "start.py",
     "backend",
@@ -49,25 +70,25 @@ $files = @(
 
 foreach ($file in $files) {
     if (Test-Path $file) {
-        Write-Host "✅ 找到 $file" -ForegroundColor Green
+        Write-Host "[OK] Found $file" -ForegroundColor Green
     } else {
-        Write-Host "❌ 找不到 $file" -ForegroundColor Red
-        Read-Host "按 Enter 退出"
+        Write-Host "[ERROR] Missing $file!" -ForegroundColor Red
+        Read-Host "Press Enter to exit"
         exit 1
     }
 }
 
-Write-Host "`n" -ForegroundColor Green
+Write-Host "`n"
 
-# 啟動服務
-Write-Host "📦 啟動服務中..." -ForegroundColor Yellow
-Write-Host "`n" -ForegroundColor Green
+# Start service
+Write-Host "Starting services..." -ForegroundColor Yellow
+Write-Host "`n"
 
 & $pythonCmd start.py
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "`n❌ 服務啟動失敗 (代碼: $LASTEXITCODE)" -ForegroundColor Red
+    Write-Host "[ERROR] Service startup failed (Exit code: $LASTEXITCODE)" -ForegroundColor Red
 }
 
-Write-Host "`n按 Enter 退出..." -ForegroundColor Yellow
+Write-Host "`nPress Enter to exit..." -ForegroundColor Yellow
 Read-Host

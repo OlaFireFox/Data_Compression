@@ -1,0 +1,6 @@
+id,product,price,quantity,category,in_stock
+101,Laptop,999.99,15,Electronics,true
+102,Smartphone,599.99,30,Electronics,true
+103,Coffee Maker,89.95,8,Appliances,true
+104,Office Chair,199.0,12,Furniture,false
+105,Running Shoes,120.0,25,Apparel,true
