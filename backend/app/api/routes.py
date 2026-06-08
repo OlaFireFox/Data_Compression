@@ -117,7 +117,8 @@ async def upload_and_compress(file: UploadFile = File(...)):
             code_table=metadata["code_table"],
             build_steps=metadata["build_steps"],
             tree_structure=tree_structure,
-            compressed_filename=compressed_filename  # ⭐ 壓縮檔案名稱
+            compressed_filename=compressed_filename,  # ⭐ 壓縮檔案名稱
+            compressed_size=save_result.get("compressed_size")  # 實際 GZIP 壓縮大小 (字節)
         )
     
     except HTTPException:

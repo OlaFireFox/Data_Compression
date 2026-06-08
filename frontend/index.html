@@ -29,11 +29,11 @@
                 <button id="tab-huffman" class="px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 bg-blue-600 text-white shadow-md">
                     🔤 Huffman 文字壓縮
                 </button>
-                <button id="tab-image" class="px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 text-slate-400 hover:text-slate-200">
-                    🖼️ JPEG/DCT 圖片壓縮
-                </button>
                 <button id="tab-lz77" class="px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 text-slate-400 hover:text-slate-200">
                     🌀 LZ77 & 混合壓縮 (LZH)
+                </button>
+                <button id="tab-image" class="px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 text-slate-400 hover:text-slate-200">
+                    🖼️ JPEG/DCT 圖片壓縮
                 </button>
             </div>
 
@@ -108,13 +108,13 @@
                         <div class="bg-slate-800 bg-opacity-50 rounded-xl p-4 border border-slate-700">
                             <p class="text-xs text-slate-400 uppercase tracking-wide mb-2">原始大小</p>
                             <p class="text-2xl font-bold text-blue-400">
-                                <span id="resultOriginalSize">0</span> <span class="text-base text-slate-400">B</span>
+                                <span id="resultOriginalSize">0</span>
                             </p>
                         </div>
                         <div class="bg-slate-800 bg-opacity-50 rounded-xl p-4 border border-slate-700">
                             <p class="text-xs text-slate-400 uppercase tracking-wide mb-2">壓縮後</p>
                             <p class="text-2xl font-bold text-purple-400">
-                                <span id="resultCompressedSize">0</span> <span class="text-base text-slate-400">bits</span>
+                                <span id="resultCompressedSize">0</span>
                             </p>
                         </div>
                         <div class="bg-slate-800 bg-opacity-50 rounded-xl p-4 border border-slate-700">
@@ -794,8 +794,8 @@
                         <label class="text-slate-300 font-medium">搜尋區大小 (Search Window)</label>
                         <span id="txtLz77WindowSize" class="font-bold text-teal-400">256 B</span>
                     </div>
-                    <input type="range" id="rngLz77WindowSize" min="64" max="2048" step="64" value="256" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-teal-500" />
-                    <p class="text-[10px] text-slate-500">歷史紀錄搜尋範圍。在可視化中較小的視窗更容易理解。</p>
+                    <input type="range" id="rngLz77WindowSize" min="16" max="2048" step="16" value="256" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-teal-500" />
+                    <p class="text-[10px] text-slate-500">歷史紀錄搜尋範圍。在可視化中設定較小的視窗（如 16 B 或 32 B）可清楚看到視窗「滑動」的邊界推移過程。</p>
                 </div>
 
                 <!-- 先行區滑桿 -->
@@ -827,6 +827,22 @@
                         💡 <b>這就是 DEFLATE 的基礎！</b><br>
                         我們日常使用的 ZIP, GZIP (.gz) 以及 PNG 影像格式，其核心就是由 LZ77 + Huffman 聯動組成的 DEFLATE 演算法，能實現無損且極佳的壓縮比率！
                     </p>
+                    
+                    <!-- 新增：滑動視窗原理解釋與調參指引 -->
+                    <div class="mt-4 bg-slate-900 bg-opacity-70 p-3 rounded-lg border border-slate-700 space-y-2 text-slate-300">
+                        <p class="text-teal-400 font-bold flex items-center gap-1">🛠️ 視覺化「滑動」指南與調參指引：</p>
+                        <p>
+                            <b>1. 什麼是「滑動」？</b> 當我們編碼到較後面的字元時，搜尋範圍不能無限擴大，而是被限制在一個固定大小的視窗內（搜尋區）。當前指針移動時，搜尋區的<b>起始邊界</b>也會同步向右推移，看起來就像是視窗在文字上「滑動」一樣。
+                        </p>
+                        <p>
+                            <b>2. 為什麼調整參數（256 ~ 2048）看不出變化？</b><br>
+                            為了防止大檔案壓縮時，前端產生過多 DOM 元素導致瀏覽器卡頓，動畫演示<b>僅針對檔案的前 200 個字元</b>。
+                            當您將搜尋區大小設為 256 或更大時，因為 256 大於 200，搜尋區的左邊界會一直維持在 0，也就是說<b>視窗在動畫結束前都不需要滑動</b>，因此看起來沒有變化！
+                        </p>
+                        <p class="text-teal-300 font-semibold">
+                            👉 <b>建議操作</b>：請將「搜尋區大小」滑桿拉至最小的 <b>16 B</b> 或 <b>32 B</b>，然後點擊「繼續」播放。您會發現，當指針移動超過 16 或 32 時，綠色搜尋區的左邊界（索引數字）就會開始往右移動，這就是真實的<b>滑動視窗</b>運作原理！
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>

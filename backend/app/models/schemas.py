@@ -18,6 +18,7 @@ class CompressionResponse(BaseModel):
     build_steps: List[Dict]
     tree_structure: Optional[Dict] = None
     compressed_filename: Optional[str] = None  # ⭐ 新增壓縮檔案名稱
+    compressed_size: Optional[int] = None      # 實際壓縮後檔案大小(字節)
 
 
 class DecompressionRequest(BaseModel):

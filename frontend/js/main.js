@@ -88,33 +88,29 @@ const elements = {
 // ============= 計算函數 =============
 /**
  * 計算空間節省率 (Space Saving Rate)
- * 公式: ((原始 bits - 壓縮後 bits) / 原始 bits) * 100
+ * 公式: ((原始 bytes - 壓縮後 bytes) / 原始 bytes) * 100
  * 
  * @param {number} originalBytes - 原始文件大小（字節）
- * @param {number} compressedBits - 壓縮後文件大小（bits）
- * @returns {string} 百分比字符串，例如 "42.90%"
+ * @param {number} compressedBytes - 壓縮後文件大小（字節）
+ * @returns {string} 百分比字符串，例如 "98.66"
  */
-function calculateSpaceSavingRate(originalBytes, compressedBits) {
+function calculateSpaceSavingRate(originalBytes, compressedBytes) {
     // 防錯處理：如果原始大小為 0，返回 0%
     if (originalBytes <= 0) {
         console.warn('⚠️ 原始大小為 0 或負數，返回 0%');
         return '0.00';
     }
     
-    // ✅ 統一單位轉換：原始大小 (字節) → bits
-    const originalBits = originalBytes * 8;
-    
     // 計算節省率百分比
-    // 例如：(667 * 8 bits - 2958 bits) / (667 * 8 bits) = (5336 - 2958) / 5336 = 44.58%
-    const savingRatio = (originalBits - compressedBits) / originalBits;
+    const savingRatio = (originalBytes - compressedBytes) / originalBytes;
     const savingPercentage = savingRatio * 100;
     
     // ✅ 使用 toFixed(2) 保留兩位小數
     const formatted = savingPercentage.toFixed(2);
     
     console.log(`📊 空間節省率計算：`);
-    console.log(`   原始: ${originalBytes} 字節 = ${originalBits} bits`);
-    console.log(`   壓縮後: ${compressedBits} bits`);
+    console.log(`   原始: ${originalBytes} 字節`);
+    console.log(`   壓縮後: ${compressedBytes} 字節`);
     console.log(`   節省率: ${formatted}%`);
     
     return formatted;
@@ -458,14 +454,20 @@ async function handleCompress() {
 // ============= 顯示壓縮結果 =============
 function displayCompressionResult(result) {
     // 顯示統計信息
-    elements.resultOriginalSize.textContent = result.original_size;
-    elements.resultCompressedSize.textContent = result.encoded_size;
+    elements.resultOriginalSize.textContent = API.formatFileSize(result.original_size);
     
-    // ✅ 計算空間節省率（單位統一為 bits）
-    // 公式：((原始 bits - 壓縮後 bits) / 原始 bits) * 100
+    // 如果有 compressed_size (實際的 gzip 大小)，就使用它，否則用 encoded_size (以位換算) 近似字節大小
+    const compressedBytes = result.compressed_size !== undefined && result.compressed_size !== null
+        ? result.compressed_size
+        : Math.ceil(result.encoded_size / 8);
+    
+    elements.resultCompressedSize.textContent = API.formatFileSize(compressedBytes);
+    
+    // ✅ 計算空間節省率（單位統一為 bytes）
+    // 公式：((原始 bytes - 壓縮後 bytes) / 原始 bytes) * 100
     const spaceSavingRate = calculateSpaceSavingRate(
-        result.original_size,    // 原始 bits
-        result.encoded_size      // 壓縮後 bits
+        result.original_size,    // 原始 bytes
+        compressedBytes          // 壓縮後 bytes
     );
     elements.resultCompressionRatio.textContent = spaceSavingRate;
 

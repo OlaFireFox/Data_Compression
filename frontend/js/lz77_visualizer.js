@@ -20,6 +20,77 @@ class LZ77Visualizer {
         // 視區中央位置 (第 8 個 block，從 0 開始算)
         this.centerBlockIdx = 8;
         this.totalVisibleBlocks = 20;
+
+        // 拖動狀態設定
+        this.dragOffset = 0;
+        this.isDragging = false;
+        this.startX = 0;
+        this.startDragOffset = 0;
+        this.lastStep = null;
+
+        // 設定畫布預設游標
+        this.canvas.style.cursor = 'grab';
+
+        // 註冊拖拽事件
+        this.initDragEvents();
+    }
+
+    initDragEvents() {
+        // 滑鼠事件
+        this.canvas.addEventListener('mousedown', (e) => this.handleDragStart(e.clientX));
+        this.canvas.addEventListener('mousemove', (e) => this.handleDragMove(e.clientX));
+        this.canvas.addEventListener('mouseup', () => this.handleDragEnd());
+        this.canvas.addEventListener('mouseleave', () => this.handleDragEnd());
+
+        // 觸控事件
+        this.canvas.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                this.handleDragStart(e.touches[0].clientX);
+            }
+        }, { passive: true });
+
+        this.canvas.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 1) {
+                this.handleDragMove(e.touches[0].clientX);
+            }
+        }, { passive: true });
+
+        this.canvas.addEventListener('touchend', () => this.handleDragEnd());
+    }
+
+    handleDragStart(clientX) {
+        if (!this.lastStep) return;
+        this.isDragging = true;
+        this.startX = clientX;
+        this.startDragOffset = this.dragOffset;
+        this.canvas.style.cursor = 'grabbing';
+    }
+
+    handleDragMove(clientX) {
+        if (!this.isDragging || !this.lastStep) return;
+        const dx = clientX - this.startX;
+        const blockSize = this.blockWidth + this.gap;
+        const currentIndex = this.lastStep.index;
+        
+        // 計算目標視區起點字元索引
+        const targetViewStartIdx = currentIndex - this.centerBlockIdx + this.startDragOffset - (dx / blockSize);
+        
+        // 限制視區起點索引範圍：最左能拉到 0 (文字最起點)，最右能拉到最後一個字元
+        const minStartIdx = 0;
+        const maxStartIdx = Math.max(0, this.text.length - 1);
+        const clampedStartIdx = Math.max(minStartIdx, Math.min(maxStartIdx, targetViewStartIdx));
+        
+        // 反推對應的 dragOffset
+        this.dragOffset = clampedStartIdx - (currentIndex - this.centerBlockIdx);
+        
+        this.draw(this.lastStep);
+    }
+
+    handleDragEnd() {
+        if (this.isDragging) {
+            this.isDragging = false;
+            this.canvas.style.cursor = 'grab';
+        }
     }
 
     setText(text) {
@@ -36,6 +107,15 @@ class LZ77Visualizer {
      */
     draw(step) {
         if (!this.ctx || !this.canvas || !this.text) return;
+        if (!step) return;
+        
+        // 儲存當前步驟以利拖拽時重繪
+        this.lastStep = step;
+        
+        // 如果不是在拖動狀態，則自動重設偏移量（自動定位）
+        if (!this.isDragging) {
+            this.dragOffset = 0;
+        }
         
         this.clear();
         
@@ -48,15 +128,17 @@ class LZ77Visualizer {
         const matchOffset = step.match_offset;
         const matchLength = step.match_length;
         
-        // 計算視區起點字元索引 (以 currentIndex 為中心點往左移 centerBlockIdx 個區塊)
-        const viewStartIdx = currentIndex - this.centerBlockIdx;
+        // 計算視區起點字元浮點索引
+        const floatViewStartIdx = currentIndex - this.centerBlockIdx + this.dragOffset;
+        const viewStartIdx = Math.floor(floatViewStartIdx);
+        const fracShift = (floatViewStartIdx - viewStartIdx) * (this.blockWidth + this.gap);
         
-        // 1. 繪製區塊與文字
-        for (let i = 0; i < this.totalVisibleBlocks; i++) {
+        // 1. 繪製區塊與文字（多畫一塊以覆蓋右側邊界）
+        for (let i = 0; i <= this.totalVisibleBlocks; i++) {
             const charIdx = viewStartIdx + i;
             
-            // 計算區塊 X 座標
-            const x = i * (this.blockWidth + this.gap) + 15;
+            // 計算區塊 X 座標（套用小數偏移）
+            const x = i * (this.blockWidth + this.gap) + 15 - fracShift;
             const y = this.yPos;
             
             // 檢查該字元是否在文字範圍內
@@ -155,14 +237,15 @@ class LZ77Visualizer {
         if (matchLength > 0 && matchOffset > 0) {
             const matchStartInSearch = currentIndex - matchOffset;
             
-            // 計算搜尋區匹配字串中心與先行區匹配字串中心的 Canvas X 座標
-            const searchIndexInView = matchStartInSearch - viewStartIdx + (matchLength - 1) / 2;
-            const lookaheadIndexInView = this.centerBlockIdx + (matchLength - 1) / 2;
+            // 使用浮點數視角計算匹配字串中心與先行區匹配字串中心的 Canvas X 座標 (實現拖動時線條平滑滾動)
+            const searchIndexInView = matchStartInSearch - floatViewStartIdx + (matchLength - 1) / 2;
+            const lookaheadIndexInView = currentIndex - floatViewStartIdx + (matchLength - 1) / 2;
             
-            // 確保座標在視窗範圍內
-            if (searchIndexInView >= 0 && searchIndexInView < this.totalVisibleBlocks) {
-                const startX = searchIndexInView * (this.blockWidth + this.gap) + 15 + this.blockWidth / 2;
-                const endX = lookaheadIndexInView * (this.blockWidth + this.gap) + 15 + this.blockWidth / 2;
+            const startX = searchIndexInView * (this.blockWidth + this.gap) + 15 + this.blockWidth / 2;
+            const endX = lookaheadIndexInView * (this.blockWidth + this.gap) + 15 + this.blockWidth / 2;
+            
+            // 確保座標在視窗範圍內才繪製
+            if (startX >= 0 && startX < this.canvas.width || endX >= 0 && endX < this.canvas.width) {
                 const topY = this.yPos;
                 
                 // 畫二次貝氏曲線箭頭
