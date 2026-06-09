@@ -142,10 +142,12 @@ class LZ77Visualizer {
             const y = this.yPos;
             
             // 檢查該字元是否在文字範圍內
+            const isLightTheme = document.body.classList.contains('light-theme');
+            
             if (charIdx < 0 || charIdx >= this.text.length) {
                 // 繪製空區塊
-                ctx.fillStyle = "#1e293b"; // slate-800
-                ctx.strokeStyle = "#334155"; // slate-700
+                ctx.fillStyle = isLightTheme ? "#e2e8f0" : "#1e293b"; // slate-200 或 slate-800
+                ctx.strokeStyle = isLightTheme ? "#cbd5e1" : "#334155"; // slate-300 或 slate-700
                 ctx.lineWidth = 1;
                 this.roundRect(ctx, x, y, this.blockWidth, this.blockHeight, 4, true, true);
                 continue;
@@ -160,8 +162,8 @@ class LZ77Visualizer {
             
             // 設定填滿與框線樣式
             if (isCurrent) {
-                ctx.fillStyle = "rgba(20, 184, 166, 0.25)"; // teal-500 semi-trans
-                ctx.strokeStyle = "#14b8a6"; // teal-500
+                ctx.fillStyle = isLightTheme ? "rgba(13, 148, 136, 0.2)" : "rgba(20, 184, 166, 0.25)"; // teal-600 / teal-500
+                ctx.strokeStyle = isLightTheme ? "#0d9488" : "#14b8a6"; // teal-600 / teal-500
                 ctx.lineWidth = 2.5;
             } else if (isSearch) {
                 // 檢查是否為匹配成功的字元
@@ -172,12 +174,12 @@ class LZ77Visualizer {
                 }
                 
                 if (isMatched) {
-                    ctx.fillStyle = "rgba(16, 185, 129, 0.4)"; // emerald-500 matched
-                    ctx.strokeStyle = "#34d399"; // emerald-400
+                    ctx.fillStyle = isLightTheme ? "rgba(22, 163, 74, 0.3)" : "rgba(16, 185, 129, 0.4)"; // green-600 / emerald-500
+                    ctx.strokeStyle = isLightTheme ? "#16a34a" : "#34d399"; // green-600 / emerald-400
                     ctx.lineWidth = 2;
                 } else {
-                    ctx.fillStyle = "rgba(13, 148, 136, 0.15)"; // teal-600 search
-                    ctx.strokeStyle = "rgba(13, 148, 136, 0.6)"; 
+                    ctx.fillStyle = isLightTheme ? "rgba(13, 148, 136, 0.08)" : "rgba(13, 148, 136, 0.15)";
+                    ctx.strokeStyle = isLightTheme ? "rgba(13, 148, 136, 0.4)" : "rgba(13, 148, 136, 0.6)"; 
                     ctx.lineWidth = 1;
                 }
             } else if (isLookahead) {
@@ -185,17 +187,17 @@ class LZ77Visualizer {
                 let isMatched = matchLength > 0 && charIdx >= currentIndex && charIdx < currentIndex + matchLength;
                 
                 if (isMatched) {
-                    ctx.fillStyle = "rgba(59, 130, 246, 0.4)"; // blue-500 matched
-                    ctx.strokeStyle = "#60a5fa"; // blue-400
+                    ctx.fillStyle = isLightTheme ? "rgba(37, 99, 235, 0.3)" : "rgba(59, 130, 246, 0.4)"; // blue-600 / blue-500
+                    ctx.strokeStyle = isLightTheme ? "#2563eb" : "#60a5fa"; // blue-600 / blue-400
                     ctx.lineWidth = 2;
                 } else {
-                    ctx.fillStyle = "rgba(37, 99, 235, 0.15)"; // blue-600 lookahead
-                    ctx.strokeStyle = "rgba(37, 99, 235, 0.6)";
+                    ctx.fillStyle = isLightTheme ? "rgba(37, 99, 235, 0.08)" : "rgba(37, 99, 235, 0.15)";
+                    ctx.strokeStyle = isLightTheme ? "rgba(37, 99, 235, 0.4)" : "rgba(37, 99, 235, 0.6)";
                     ctx.lineWidth = 1;
                 }
             } else {
-                ctx.fillStyle = "#1e293b"; // slate-800
-                ctx.strokeStyle = "#475569"; // slate-600
+                ctx.fillStyle = isLightTheme ? "#ffffff" : "#1e293b"; // 白色 或 slate-800
+                ctx.strokeStyle = isLightTheme ? "#cbd5e1" : "#475569"; // slate-300 或 slate-600
                 ctx.lineWidth = 1;
             }
             
@@ -203,7 +205,9 @@ class LZ77Visualizer {
             this.roundRect(ctx, x, y, this.blockWidth, this.blockHeight, 4, true, true);
             
             // 3. 繪製文字
-            ctx.fillStyle = isCurrent ? "#5eead4" : "#f1f5f9"; // teal-300 或 slate-100
+            ctx.fillStyle = isCurrent 
+                ? (isLightTheme ? "#0f766e" : "#5eead4") 
+                : (isLightTheme ? "#0f172a" : "#f1f5f9"); // 深綠/淺青 或 深灰/淺白
             ctx.font = "bold 14px monospace";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
@@ -217,18 +221,18 @@ class LZ77Visualizer {
             ctx.fillText(displayChar, x + this.blockWidth / 2, y + this.blockHeight / 2);
             
             // 4. 標記文字索引
-            ctx.fillStyle = "#94a3b8"; // slate-400
+            ctx.fillStyle = isLightTheme ? "#64748b" : "#94a3b8"; // slate-500 或 slate-400
             ctx.font = "8px monospace";
             ctx.fillText(charIdx.toString(), x + this.blockWidth / 2, y + this.blockHeight + 10);
         }
         
         // 5. 標記區域名稱 (Search Buffer / Lookahead Buffer)
-        ctx.fillStyle = "#14b8a6"; // teal
+        ctx.fillStyle = isLightTheme ? "#0f766e" : "#14b8a6"; // dark teal 或 teal
         ctx.font = "bold 9px system-ui";
         ctx.textAlign = "left";
         ctx.fillText("🔍 字典搜尋區 (Search Buffer)", 15, 20);
         
-        ctx.fillStyle = "#3b82f6"; // blue
+        ctx.fillStyle = isLightTheme ? "#1d4ed8" : "#3b82f6"; // dark blue 或 blue
         ctx.font = "bold 9px system-ui";
         ctx.textAlign = "right";
         ctx.fillText("先行緩衝區 (Lookahead)", this.canvas.width - 15, 20);

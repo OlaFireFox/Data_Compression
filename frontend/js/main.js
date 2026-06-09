@@ -116,10 +116,52 @@ function calculateSpaceSavingRate(originalBytes, compressedBytes) {
     return formatted;
 }
 
+// ============= 主題切換 (Light / Dark Theme) =============
+function initTheme() {
+    const themeToggleBtn = document.getElementById('theme-toggle');
+    if (!themeToggleBtn) return;
+
+    // 讀取先前儲存的主題偏好，若無則預設為深色模式 (dark)
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    
+    if (savedTheme === 'light') {
+        document.body.classList.add('light-theme');
+        themeToggleBtn.textContent = '🌙';
+        themeToggleBtn.setAttribute('title', '切換為深色主題');
+    } else {
+        document.body.classList.remove('light-theme');
+        themeToggleBtn.textContent = '☀️';
+        themeToggleBtn.setAttribute('title', '切換為明亮主題');
+    }
+
+    themeToggleBtn.addEventListener('click', () => {
+        const isLight = document.body.classList.toggle('light-theme');
+        if (isLight) {
+            localStorage.setItem('theme', 'light');
+            themeToggleBtn.textContent = '🌙';
+            themeToggleBtn.setAttribute('title', '切換為深色主題');
+        } else {
+            localStorage.setItem('theme', 'dark');
+            themeToggleBtn.textContent = '☀️';
+            themeToggleBtn.setAttribute('title', '切換為明亮主題');
+        }
+
+        // 如果當前有加載的 LZ77 步驟，主動重繪畫布以套用新主題的顏色配色
+        if (appState.lz77Visualizer && appState.lz77Visualizer.lastStep) {
+            appState.lz77Visualizer.draw(appState.lz77Visualizer.lastStep);
+        }
+        // 同理重繪 Huffman Tree
+        if (appState.treeVisualizer && appState.treeVisualizer.treeData) {
+            appState.treeVisualizer.draw();
+        }
+    });
+}
+
 // ============= 初始化 =============
 document.addEventListener('DOMContentLoaded', () => {
     console.log('應用初始化中...');
     
+    initTheme();
     setupEventListeners();
     checkAPIStatus();
     setInterval(checkAPIStatus, 5000); // 每5秒檢查一次 API 狀態

@@ -298,3 +298,163 @@ button:disabled {
     box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
+/* ============= 明暗主題切換 (Light Mode) ============= */
+body.light-theme {
+    background-color: #f1f5f9 !important; /* slate-100 */
+    background-image: none !important;
+    color: #0f172a !important; /* slate-900 */
+}
+
+/* 覆蓋卡片、容器背景與邊框 */
+.light-theme nav {
+    background-color: rgba(255, 255, 255, 0.8) !important;
+    border-color: #cbd5e1 !important;
+}
+
+.light-theme .bg-slate-900 {
+    background-color: #ffffff !important;
+    border-color: #cbd5e1 !important;
+}
+
+.light-theme .bg-slate-800 {
+    background-color: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05) !important;
+}
+
+.light-theme .bg-slate-950 {
+    background-color: #f8fafc !important; /* slate-50 */
+    border-color: #cbd5e1 !important;
+}
+
+/* 覆蓋邊框顏色 */
+.light-theme .border-slate-600,
+.light-theme .border-slate-700,
+.light-theme .border-slate-800,
+.light-theme .border-slate-900 {
+    border-color: #cbd5e1 !important; /* slate-300 */
+}
+
+/* 覆蓋文字顏色 */
+.light-theme h1,
+.light-theme h2,
+.light-theme h3,
+.light-theme h4,
+.light-theme .text-slate-100 {
+    color: #0f172a !important; /* slate-900 */
+}
+
+.light-theme .text-slate-200 {
+    color: #1e293b !important; /* slate-800 */
+}
+
+.light-theme .text-slate-300 {
+    color: #334155 !important; /* slate-700 */
+}
+
+.light-theme .text-slate-400 {
+    color: #475569 !important; /* slate-600 */
+}
+
+.light-theme .text-slate-500 {
+    color: #64748b !important; /* slate-500 */
+}
+
+/* 覆蓋特殊的背景樣式 */
+.light-theme #dropZone {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(241, 245, 249, 0.8) 100%) !important;
+    border-color: #cbd5e1 !important;
+}
+
+.light-theme #dropZone:hover {
+    background: linear-gradient(135deg, rgba(219, 234, 254, 0.5) 0%, rgba(243, 232, 255, 0.5) 100%) !important;
+    border-color: #3b82f6 !important;
+}
+
+/* 覆蓋按鈕與輸入框 */
+.light-theme select,
+.light-theme input[type="range"] {
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+    border-color: #cbd5e1 !important;
+}
+
+.light-theme select {
+    border: 1px solid #cbd5e1 !important;
+}
+
+.light-theme .accent-teal-500 {
+    accent-color: #0d9488 !important;
+}
+
+/* 覆蓋動畫模態框與覆蓋層 */
+.light-theme #animationModal {
+    background-color: rgba(15, 23, 42, 0.6) !important;
+}
+
+/* 覆蓋動態列表與字元方塊的配色 */
+.light-theme .step-item:hover {
+    background-color: rgba(226, 232, 240, 0.8) !important;
+}
+
+.light-theme .step-item.bg-teal-950 {
+    background-color: #ccfbf1 !important; /* teal-100 */
+    border-color: #5eead4 !important; /* teal-300 */
+    color: #115e59 !important; /* teal-800 */
+}
+
+/* 針對 LZ77 視覺化區塊的深淺模式微調 */
+.light-theme #lz77TokenLog .text-green-400 {
+    color: #166534 !important; /* green-800 */
+}
+
+.light-theme #lz77TokenLog .text-yellow-400 {
+    color: #854d0e !important; /* yellow-800 */
+}
+
+.light-theme #lz77TokenLog .text-blue-400 {
+    color: #1e40af !important; /* blue-800 */
+}
+
+.light-theme code.text-purple-400 {
+    color: #6b21a8 !important; /* purple-800 */
+}
+
+/* 漸變邊框在亮色模式的適配 */
+.light-theme .border-gradient {
+    background: linear-gradient(#ffffff, #ffffff) padding-box,
+                linear-gradient(135deg, #3b82f6, #8b5cf6) border-box !important;
+}
+
+/* 解釋區塊適配 */
+.light-theme .bg-slate-900.bg-opacity-70,
+.light-theme .bg-slate-900.bg-opacity-80,
+.light-theme .bg-slate-900.bg-opacity-65 {
+    background-color: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+}
+
+/* 比對表格與資訊欄的懸停 */
+.light-theme tr:hover {
+    background-color: #f1f5f9 !important;
+}
+
+/* 按鈕切換樣式 */
+.light-theme #theme-toggle {
+    background-color: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+    color: #475569 !important;
+}
+
+.light-theme #theme-toggle:hover {
+    background-color: #e2e8f0 !important;
+}
+
+/* 針對圖片 DCT 網格微調，確保在亮色模式下網格線清晰 */
+.light-theme .matrix-cell-zero {
+    background-color: rgba(241, 245, 249, 0.9) !important;
+    color: #94a3b8 !important;
+    border-color: #cbd5e1 !important;
+}
+
+

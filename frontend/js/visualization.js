@@ -306,7 +306,8 @@ class HuffmanTreeVisualizer {
             this.ctx.save();
             this.ctx.shadowColor = 'transparent';
             this.ctx.shadowBlur = 0;
-            this.ctx.fillStyle = '#a5f3fc'; // 亮青色
+            // 亮色模式下改為較深的深青色，深色模式用原本的亮青色
+            this.ctx.fillStyle = document.body.classList.contains('light-theme') ? '#0891b2' : '#a5f3fc';
             this.ctx.font = 'bold 13px sans-serif';
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
@@ -344,7 +345,8 @@ class HuffmanTreeVisualizer {
             this.ctx.save();
             this.ctx.shadowColor = 'transparent';
             this.ctx.shadowBlur = 0;
-            this.ctx.fillStyle = '#e9d5ff'; // 亮紫色
+            // 亮色模式下改為較深的深紫色，深色模式用原本的亮紫色
+            this.ctx.fillStyle = document.body.classList.contains('light-theme') ? '#7c3aed' : '#e9d5ff';
             this.ctx.font = 'bold 13px sans-serif';
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
