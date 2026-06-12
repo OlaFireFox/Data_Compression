@@ -457,4 +457,17 @@ body.light-theme {
     border-color: #cbd5e1 !important;
 }
 
+/* 壓縮品質加減按鈕在亮色模式下的樣式 */
+.light-theme #btnDecQuality,
+.light-theme #btnIncQuality {
+    background-color: #cbd5e1 !important; /* slate-300 */
+    color: #334155 !important; /* slate-700 */
+}
+
+.light-theme #btnDecQuality:hover,
+.light-theme #btnIncQuality:hover {
+    background-color: #94a3b8 !important; /* slate-400 */
+    color: #0f172a !important; /* slate-900 */
+}
+
 

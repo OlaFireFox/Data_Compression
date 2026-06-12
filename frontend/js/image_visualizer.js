@@ -441,11 +441,11 @@ class ImageVisualizer {
         this.zigzagData = zigzagArray;
         this.stopZigzag();
         this.zigzagIndex = 0;
-        this.renderZigzagArrayUI();
+        this.renderZigzagArrayUI(false);
         this.drawZigzagCanvas();
     }
     
-    renderZigzagArrayUI() {
+    renderZigzagArrayUI(shouldScroll = true) {
         const container = document.getElementById('zigzagArrayContainer');
         container.innerHTML = '';
         
@@ -461,10 +461,10 @@ class ImageVisualizer {
         });
         
         container.appendChild(grid);
-        this.highlightZigzagStep();
+        this.highlightZigzagStep(shouldScroll);
     }
     
-    highlightZigzagStep() {
+    highlightZigzagStep(shouldScroll = true) {
         document.getElementById('zigzagIndexText').innerText = this.zigzagIndex;
         document.getElementById('zigzagValueText').innerText = this.zigzagData[this.zigzagIndex] !== undefined ? this.zigzagData[this.zigzagIndex] : '-';
         
@@ -484,7 +484,9 @@ class ImageVisualizer {
         if (arrayItem) {
             arrayItem.classList.remove('bg-slate-900', 'text-slate-400');
             arrayItem.classList.add('bg-emerald-500', 'text-slate-950', 'font-bold');
-            arrayItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            if (shouldScroll) {
+                arrayItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
         }
     }
     

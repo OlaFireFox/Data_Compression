@@ -317,6 +317,26 @@ function setupEventListeners() {
         imageQuality.addEventListener('change', () => {
             handleImageCompress();
         });
+
+        // 綁定加減按鈕
+        const btnDecQuality = document.getElementById('btnDecQuality');
+        const btnIncQuality = document.getElementById('btnIncQuality');
+        if (btnDecQuality && btnIncQuality) {
+            btnDecQuality.addEventListener('click', () => {
+                let val = parseInt(imageQuality.value) - 1;
+                if (val < 1) val = 1;
+                imageQuality.value = val;
+                qualityValText.innerText = val;
+                handleImageCompress();
+            });
+            btnIncQuality.addEventListener('click', () => {
+                let val = parseInt(imageQuality.value) + 1;
+                if (val > 100) val = 100;
+                imageQuality.value = val;
+                qualityValText.innerText = val;
+                handleImageCompress();
+            });
+        }
     }
 
     // 下載重建影像 (PNG)
