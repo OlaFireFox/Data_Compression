@@ -282,6 +282,37 @@ class LZ77Visualizer {
                 ctx.fillStyle = "#34d399";
                 ctx.fillText(`Match! Offset: ${matchOffset}, Len: ${matchLength}`, midX, cpY - 5);
             }
+
+            // 7. 新增：相同部分用虛線從下方連起的效果
+            const bottomY = this.yPos + this.blockHeight;
+            const isLightTheme = document.body.classList.contains('light-theme');
+            
+            for (let k = 0; k < matchLength; k++) {
+                const sourceIdx = matchStartInSearch + k;
+                const destIdx = currentIndex + k;
+                
+                // 計算各個字元的中心 X 座標
+                const sX = (sourceIdx - floatViewStartIdx) * (this.blockWidth + this.gap) + 15 + this.blockWidth / 2;
+                const dX = (destIdx - floatViewStartIdx) * (this.blockWidth + this.gap) + 15 + this.blockWidth / 2;
+                
+                // 只要起點或終點在畫布範圍內即進行繪製
+                if ((sX >= 0 && sX <= this.canvas.width) || (dX >= 0 && dX <= this.canvas.width)) {
+                    ctx.beginPath();
+                    ctx.strokeStyle = isLightTheme ? "rgba(16, 185, 129, 0.5)" : "rgba(52, 211, 153, 0.5)"; // 半透明綠色
+                    ctx.lineWidth = 1.2;
+                    ctx.setLineDash([2, 2]); // 細虛線
+                    
+                    ctx.moveTo(sX, bottomY);
+                    
+                    const midX = (sX + dX) / 2;
+                    // 下拉弧度隨距離稍微拉深，並限制最大高度避免超出畫布底部
+                    const cpY = bottomY + 12 + Math.min(20, (dX - sX) * 0.08);
+                    
+                    ctx.quadraticCurveTo(midX, cpY, dX, bottomY);
+                    ctx.stroke();
+                }
+            }
+            ctx.setLineDash([]); // 恢復實線
         }
     }
 

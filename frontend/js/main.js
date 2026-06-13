@@ -1970,6 +1970,8 @@ function lz77StepNext() {
     
     if (appState.lz77CurrentStep >= appState.lz77Steps.length - 1) {
         pauseLz77Animation();
+        const playBtn = document.getElementById('lz77PlayBtn');
+        if (playBtn) playBtn.textContent = '▶️ 播放';
         showNotification('動畫播放完成！', 'info');
         return;
     }
@@ -1985,6 +1987,11 @@ function toggleLz77Play() {
     if (appState.lz77Playing) {
         pauseLz77Animation();
     } else {
+        // 如果已經在最後一步，點擊播放時自動跳回第 0 步重新播放
+        if (appState.lz77CurrentStep >= appState.lz77Steps.length - 1) {
+            appState.lz77CurrentStep = 0;
+            showLz77Step(0);
+        }
         appState.lz77Playing = true;
         playBtn.textContent = '⏸️ 暫停';
         runLz77Autoplay();
@@ -2029,11 +2036,16 @@ function runLz77Autoplay() {
     
     if (appState.lz77CurrentStep >= appState.lz77Steps.length - 1) {
         pauseLz77Animation();
+        const playBtn = document.getElementById('lz77PlayBtn');
+        if (playBtn) playBtn.textContent = '▶️ 播放';
         showNotification('動畫播放完成！', 'info');
         return;
     }
     
     lz77StepNext();
+    
+    // 如果在執行 lz77StepNext 後動畫被暫停（如到達最後一步），則不再排定計時器
+    if (!appState.lz77Playing) return;
     
     // 讀取速度滑桿數值，計算延遲時間（基準延遲為 800ms）
     const speedInput = document.getElementById('lz77AnimationSpeed');
