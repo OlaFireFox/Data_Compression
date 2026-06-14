@@ -120,6 +120,7 @@ class LZ77Visualizer {
         this.clear();
         
         const ctx = this.ctx;
+        const isLightTheme = document.body.classList.contains('light-theme');
         const currentIndex = step.index;
         const searchStart = step.search_start;
         const searchEnd = step.search_end;
@@ -144,7 +145,6 @@ class LZ77Visualizer {
             const y = this.yPos;
             
             // 檢查該字元是否在文字範圍內
-            const isLightTheme = document.body.classList.contains('light-theme');
             
             if (charIdx < 0 || charIdx >= this.text.length) {
                 // 繪製空區塊
@@ -287,7 +287,6 @@ class LZ77Visualizer {
 
             // 7. 新增：相同部分用虛線從下方連起的效果
             const bottomY = this.yPos + this.blockHeight;
-            const isLightTheme = document.body.classList.contains('light-theme');
             
             console.log(`[LZ77Visualizer] Drawing bottom dashed lines connecting ${matchLength} identical characters...`);
             
