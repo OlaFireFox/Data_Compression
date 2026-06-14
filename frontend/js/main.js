@@ -1927,7 +1927,14 @@ async function downloadLzhFile() {
 // ============= LZ77 動畫控制邏輯 =============
 
 function showLz77Step(idx) {
-    if (!appState.lz77Steps || idx < 0 || idx >= appState.lz77Steps.length) return;
+    if (typeof idx !== 'number' || Number.isNaN(idx)) {
+        console.error("[main.js] showLz77Step called with invalid index:", idx);
+        return;
+    }
+    if (!appState.lz77Steps || idx < 0 || idx >= appState.lz77Steps.length) {
+        console.warn(`[main.js] showLz77Step index out of range: ${idx}, steps length: ${appState.lz77Steps ? appState.lz77Steps.length : 'none'}`);
+        return;
+    }
     
     appState.lz77CurrentStep = idx;
     const step = appState.lz77Steps[idx];
@@ -1966,9 +1973,16 @@ function showLz77Step(idx) {
 }
 
 function lz77StepNext() {
+    console.log("[main.js] lz77StepNext() clicked. lz77CurrentStep:", appState.lz77CurrentStep);
     if (!appState.lz77Steps) return;
     
+    // 確保當前步驟為有效數字
+    if (typeof appState.lz77CurrentStep !== 'number' || Number.isNaN(appState.lz77CurrentStep)) {
+        appState.lz77CurrentStep = 0;
+    }
+    
     if (appState.lz77CurrentStep >= appState.lz77Steps.length - 1) {
+        console.log("[main.js] lz77StepNext() reached the end of steps.");
         pauseLz77Animation();
         const playBtn = document.getElementById('lz77PlayBtn');
         if (playBtn) playBtn.textContent = '▶️ 播放';
@@ -1980,7 +1994,13 @@ function lz77StepNext() {
 }
 
 function toggleLz77Play() {
+    console.log("[main.js] toggleLz77Play() clicked. appState.lz77Playing:", appState.lz77Playing, "lz77CurrentStep:", appState.lz77CurrentStep);
     if (!appState.lz77Steps) return;
+    
+    // 確保當前步驟為有效數字
+    if (typeof appState.lz77CurrentStep !== 'number' || Number.isNaN(appState.lz77CurrentStep)) {
+        appState.lz77CurrentStep = 0;
+    }
     
     const playBtn = document.getElementById('lz77PlayBtn');
     
@@ -1989,6 +2009,7 @@ function toggleLz77Play() {
     } else {
         // 如果已經在最後一步，點擊播放時自動跳回第 0 步重新播放
         if (appState.lz77CurrentStep >= appState.lz77Steps.length - 1) {
+            console.log("[main.js] toggleLz77Play() wrapping around to step 0.");
             appState.lz77CurrentStep = 0;
             showLz77Step(0);
         }
@@ -1999,6 +2020,7 @@ function toggleLz77Play() {
 }
 
 function pauseLz77Animation() {
+    console.log("[main.js] pauseLz77Animation() called.");
     appState.lz77Playing = false;
     const playBtn = document.getElementById('lz77PlayBtn');
     if (playBtn) playBtn.textContent = '▶️ 繼續';
@@ -2010,6 +2032,7 @@ function pauseLz77Animation() {
 }
 
 function resetLz77Animation() {
+    console.log("[main.js] resetLz77Animation() called.");
     pauseLz77Animation();
     appState.lz77CurrentStep = 0;
     
@@ -2032,9 +2055,16 @@ function resetLz77Animation() {
 }
 
 function runLz77Autoplay() {
+    console.log("[main.js] runLz77Autoplay() tick. lz77Playing:", appState.lz77Playing, "lz77CurrentStep:", appState.lz77CurrentStep);
     if (!appState.lz77Playing || !appState.lz77Steps) return;
     
+    // 確保當前步驟為有效數字
+    if (typeof appState.lz77CurrentStep !== 'number' || Number.isNaN(appState.lz77CurrentStep)) {
+        appState.lz77CurrentStep = 0;
+    }
+    
     if (appState.lz77CurrentStep >= appState.lz77Steps.length - 1) {
+        console.log("[main.js] runLz77Autoplay() reached the end of steps.");
         pauseLz77Animation();
         const playBtn = document.getElementById('lz77PlayBtn');
         if (playBtn) playBtn.textContent = '▶️ 播放';

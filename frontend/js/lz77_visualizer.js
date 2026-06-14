@@ -128,6 +128,8 @@ class LZ77Visualizer {
         const matchOffset = step.match_offset;
         const matchLength = step.match_length;
         
+        console.log(`[LZ77Visualizer] draw() called for step index ${currentIndex}, offset: ${matchOffset}, length: ${matchLength}, dragOffset: ${this.dragOffset}`);
+        
         // 計算視區起點字元浮點索引
         const floatViewStartIdx = currentIndex - this.centerBlockIdx + this.dragOffset;
         const viewStartIdx = Math.floor(floatViewStartIdx);
@@ -287,6 +289,8 @@ class LZ77Visualizer {
             const bottomY = this.yPos + this.blockHeight;
             const isLightTheme = document.body.classList.contains('light-theme');
             
+            console.log(`[LZ77Visualizer] Drawing bottom dashed lines connecting ${matchLength} identical characters...`);
+            
             for (let k = 0; k < matchLength; k++) {
                 const sourceIdx = matchStartInSearch + k;
                 const destIdx = currentIndex + k;
@@ -298,9 +302,10 @@ class LZ77Visualizer {
                 // 只要起點或終點在畫布範圍內即進行繪製
                 if ((sX >= 0 && sX <= this.canvas.width) || (dX >= 0 && dX <= this.canvas.width)) {
                     ctx.beginPath();
-                    ctx.strokeStyle = isLightTheme ? "rgba(16, 185, 129, 0.5)" : "rgba(52, 211, 153, 0.5)"; // 半透明綠色
-                    ctx.lineWidth = 1.2;
-                    ctx.setLineDash([2, 2]); // 細虛線
+                    // 變更為高飽和度、無透明度的綠色，亮色/暗色主題自適應
+                    ctx.strokeStyle = isLightTheme ? "#059669" : "#34d399";
+                    ctx.lineWidth = 1.5;
+                    ctx.setLineDash([3, 2]); // 細虛線，比原來更清晰
                     
                     ctx.moveTo(sX, bottomY);
                     
